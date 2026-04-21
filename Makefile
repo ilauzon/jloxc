@@ -1,4 +1,4 @@
-OBJECTS = scanning.o tokenizer.o
+OBJECTS = main.o tokenizer.o errorhandler.o
 
 jlox : $(OBJECTS)
 	cc -o $@ $(OBJECTS)
