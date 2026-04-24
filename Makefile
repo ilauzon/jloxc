@@ -23,7 +23,7 @@ $(OBJ_DIR)/%.o : $(SRC_DIR)/%.c Makefile
 .PHONY : all run clean
 all : $(TARGET)
 run : $(TARGET)
-	./$(TARGET)
+	$(TARGET)
 clean :
 	rm -f $(OBJECTS) $(DEPENDS) $(TARGET)
 

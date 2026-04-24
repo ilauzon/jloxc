@@ -1,4 +1,5 @@
-#define TOKEN_TYPE_LIST(X)                                                     \
+#pragma once
+#define ENUM_LIST(X)                                                           \
     X(LEFT_PAREN)                                                              \
     X(RIGHT_PAREN)                                                             \
     X(LEFT_BRACE)                                                              \
@@ -40,17 +41,18 @@
     X(EOF)
 
 enum TokenType {
-#define GENERATE_ENUM(name) name,
-    TOKEN_TYPE_LIST(GENERATE_ENUM)
+#define GENERATE_ENUM(name) TokenType##_##name,
+    ENUM_LIST(GENERATE_ENUM)
 #undef GENERATE_ENUM
 };
 
 inline char const *tokentype_to_string(enum TokenType t) {
     switch (t) {
 #define GENERATE_SWITCH_CASE(name)                                             \
-    case name:                                                                 \
-        return "abc";
-        TOKEN_TYPE_LIST(GENERATE_SWITCH_CASE)
+    case TokenType##_##name:                                                   \
+        return "TokenType_" #name;
+        ENUM_LIST(GENERATE_SWITCH_CASE)
 #undef GENERATE_SWITCH_CASE
     }
 }
+#undef ENUM_LIST

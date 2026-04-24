@@ -11,7 +11,7 @@ enum {
 };
 
 void run(char const line[static 1], bool *had_error) {
-    struct Token tokens[MAX_TOKENS_PER_LINE] = {0};
+    Token tokens[MAX_TOKENS_PER_LINE] = {0};
     int tokens_scanned = tokenizer_scan_tokens(MAX_TOKENS_PER_LINE, tokens);
     for (int i = 0; i < tokens_scanned; ++i) {
         // printf("%d", tokens[i].placeholder);
