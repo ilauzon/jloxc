@@ -12,19 +12,11 @@ enum {
 
 void run(char const line[static 1], bool *had_error) {
     struct Token tokens[MAX_TOKENS_PER_LINE] = {0};
-
-    if (line == NULL) {
-        // figure out a better way to handle a NP error here
-        fprintf(stderr, "Null pointer given, exiting");
-        exit(EXIT_FAILURE);
-        return;
-    }
-
     int tokens_scanned = tokenizer_scan_tokens(MAX_TOKENS_PER_LINE, tokens);
-
     for (int i = 0; i < tokens_scanned; ++i) {
-        printf("%d", tokens[i].placeholder);
+        // printf("%d", tokens[i].placeholder);
     }
+    *had_error = false;
 }
 
 int run_file(char const path[static 1]) {
@@ -54,10 +46,9 @@ int run_file(char const path[static 1]) {
     return EXIT_SUCCESS;
 }
 
-int run_prompt() {
+int run_prompt(void) {
     while (true) {
         printf("> ");
-
         char line[MAX_LINE_SIZE] = {0};
         char const *const ret = fgets(line, sizeof(line), stdin);
         if (ret == NULL || !strlen(line)) {

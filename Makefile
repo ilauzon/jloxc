@@ -1,12 +1,29 @@
-OBJECTS = main.o tokenizer.o errorhandler.o
+COMPILE_FLAGS = -std=c17 -Wpedantic -Wall -Wextra
+SRC_DIR = src
+INCLUDE_DIR = $(SRC_DIR)/include
+BUILD_DIR = build
+OBJ_DIR = $(BUILD_DIR)/obj
+BIN_DIR = .
+TARGET = $(BIN_DIR)/jlox
 
-jlox : $(OBJECTS)
-	cc -o $@ $(OBJECTS)
+SOURCES = $(wildcard $(SRC_DIR)/*.c)
+OBJECTS = $(SOURCES:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+DEPENDS = $(SOURCES:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.d)
 
-.PHONY : run
-run : jlox
-	./jlox
+$(TARGET) : $(OBJECTS)
+	@mkdir -p $(dir $@)
+	@cc $(COMPILE_FLAGS) $^  -o $@ 
 
-.PHONY : clean
+$(OBJ_DIR)/%.o : $(SRC_DIR)/%.c Makefile
+	@mkdir -p $(dir $@)
+	@cc $(COMPILE_FLAGS) -MMD -MP -c $< -I$(INCLUDE_DIR) -o $@
+
+-include $(DEPENDS)
+
+.PHONY : all run clean
+all : $(TARGET)
+run : $(TARGET)
+	./$(TARGET)
 clean :
-	rm jlox $(OBJECTS)
+	rm -f $(OBJECTS) $(DEPENDS) $(TARGET)
+
