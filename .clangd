@@ -1,0 +1,16 @@
+CompileFlags:
+  Add:
+    - "-Iinclude"
+    - "-std=c17"
+    - "-Wpedantic"
+    - "-Wall"
+    - "-Wextra"
+    - "-Wdocumentation"
+Documentation: # requires clangd >= 22
+  CommentFormat: Doxygen
+---
+If:
+  PathMatch: .*\.h
+CompileFlags:
+  Add:
+    - "-xc-header"

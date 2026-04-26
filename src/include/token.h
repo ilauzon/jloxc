@@ -1,68 +1,41 @@
+#pragma once
 #include "tokentype.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+typedef char *(*LiteralToString)(void const *, size_t const);
+
+/**
+ * A literal value, used in struct `Token`.
+ */
 typedef struct {
-    void *value;
-    size_t value_size;
-    char *(*to_string)(void const *);
+    /** A pointer to the start of the data in the literal. */
+    void const *const value;
+    /** The number of bytes in `value`. */
+    size_t const value_size;
+    /** A pointer to a function to convert the literal to a string. */
+    LiteralToString const to_string;
 } Literal;
 
+/**
+ * A language token.
+ */
 typedef struct {
-    char *lexeme;
-    Literal *literal;
+    /** A null-terminated string containing the string representation of the
+     * token.
+     */
+    char const *const lexeme;
+    /** Blob containing contents of the token if it is a literal. */
+    Literal const *const literal;
+    /** The line of source code that the token appears on. */
     unsigned int line;
-    enum TokenType type;
+    /** The type of the token. */
+    enum TokenType const type;
 } Token;
 
-static inline char *token_to_string(Token const *const token) {
-    int const max_size_to_string = 255;
-    char *line = calloc(1, max_size_to_string);
-    if (!line) {
-        perror("memory allocation failed");
-        return NULL;
-    }
-    snprintf(line, max_size_to_string, "%s %s %s",
-             tokentype_to_string(token->type), token->lexeme,
-             token->literal->to_string(token->literal->value));
-    return line;
-}
+Literal *token_literal_init(void const *const value, size_t const value_size,
+                            LiteralToString const to_string);
 
-static inline Token *token_init(enum TokenType const type,
-                                char const *const lexeme,
-                                unsigned int const line,
-                                void const *const literal_value,
-                                size_t const literal_size,
-                                char *(*literal_to_string)(void const *)) {
-    Token *token = calloc(1, sizeof(Token));
-    if (!token) {
-        perror("memory allocation failed");
-        return NULL;
-    }
-
-    Literal *literal = calloc(1, sizeof(Literal));
-    if (!literal) {
-        perror("memory allocation failed");
-        return NULL;
-    }
-    if (literal_value && literal_to_string) {
-        // memcpy needed instead of foo* = bar* because you can't do that with
-        // void pointers
-        memcpy(literal->value, literal_value, literal_size);
-        literal->to_string = literal_to_string;
-    }
-    token->literal = literal;
-
-    *token->lexeme = *lexeme;
-    token->line = line;
-    token->type = type;
-    return token;
-}
-
-static inline char *eof_to_string(void const *const ignored) { return "<EOF>"; }
-static inline Token *token_eof(int line) {
-    Token *token = token_init(TokenType_EOF, "", line, "<EOF>", sizeof(char *),
-                              eof_to_string);
-    return token;
-}
+Token *token_init(enum TokenType const type, char const *const lexeme,
+                  Literal const *const literal, unsigned int const line);

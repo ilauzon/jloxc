@@ -1,5 +1,5 @@
 #include "errorhandler.h"
-#include "tokenizer.h"
+#include "token.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,13 +10,12 @@ enum {
     MAX_TOKENS_PER_LINE = 500,
 };
 
-void run(char const line[static 1], bool *had_error) {
+void run(char const line[static 1]) {
     Token tokens[MAX_TOKENS_PER_LINE] = {0};
-    int tokens_scanned = tokenizer_scan_tokens(MAX_TOKENS_PER_LINE, tokens);
-    for (int i = 0; i < tokens_scanned; ++i) {
-        // printf("%d", tokens[i].placeholder);
-    }
-    *had_error = false;
+    // int tokens_scanned = scanner_scan_tokens();
+    // for (int i = 0; i < tokens_scanned; ++i) {
+    //     // printf("%d", tokens[i].placeholder);
+    // }
 }
 
 int run_file(char const path[static 1]) {
@@ -25,7 +24,7 @@ int run_file(char const path[static 1]) {
         char error_msg[100] = {0};
         snprintf(error_msg, 100, "Failed to open file %s.", path);
         bool _;
-        errorhandler_printerror(1, error_msg, &_);
+        errorhandler_printerror(1, error_msg);
         return EXIT_FAILURE;
     }
 
@@ -36,9 +35,8 @@ int run_file(char const path[static 1]) {
     fread(contents, file_size, 1, file);
     fclose(file);
 
-    bool had_error = false;
-    run(contents, &had_error);
-    if (had_error) {
+    run(contents);
+    if (errorhandler_haderror()) {
         return EXIT_FAILURE;
     }
 
@@ -54,9 +52,8 @@ int run_prompt(void) {
         if (ret == NULL || !strlen(line)) {
             break;
         }
-        bool had_error = false;
-        run(line, &had_error);
-        if (had_error) {
+        run(line);
+        if (errorhandler_haderror()) {
             return EXIT_FAILURE;
         }
     }
