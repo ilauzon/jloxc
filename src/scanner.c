@@ -3,6 +3,7 @@
 #include "token.h"
 #include "tokentype.h"
 #include <assert.h>
+#include <ctype.h>
 #include <stdbool.h>
 
 static bool scanner_is_at_end(Scanner const *const scanner) {
@@ -90,8 +91,22 @@ static char scanner_peek(Scanner const *const scanner) {
     return scanner->source[scanner->current];
 }
 
+static char scanner_peek_next(Scanner const *const scanner) {
+    if (scanner->current + 1 >= strlen(scanner->source) + 1) {
+        return '\0';
+    }
+    return scanner->source[scanner->current + 1];
+}
+
 static char const *string_to_string(void const *const string,
                                     size_t const ignored) {
+    return string;
+}
+
+static char const *number_to_string(void const *const number,
+                                    size_t const ignored) {
+    char *string = malloc(50);
+    snprintf(string, 50, "%f", *(double *)number);
     return string;
 }
 
@@ -127,6 +142,33 @@ static void scanner_scan_string(Scanner *const scanner) {
     Literal *const literal =
         token_literal_init(string, string_length, string_to_string);
     scanner_add_token_from_literal(scanner, TokenType_STRING, literal);
+}
+
+static void scanner_scan_number(Scanner *const scanner) {
+    while (isdigit(scanner_peek(scanner))) {
+        scanner_advance(scanner);
+    }
+
+    if (scanner_peek(scanner) == '.' && isdigit(scanner_peek_next(scanner))) {
+        scanner_advance(scanner);
+
+        while (isdigit(scanner_peek(scanner))) {
+            scanner_advance(scanner);
+        }
+    }
+
+    // copy the string containing the double
+    assert(scanner->current > scanner->start);
+    size_t string_length = scanner->current - scanner->start + 1;
+    char *const string = malloc(string_length);
+    memcpy(string, scanner->source + scanner->start, string_length);
+    string[string_length - 1] = '\0';
+
+    double *const value = malloc(sizeof(double));
+    *value = atof(string);
+    Literal *const literal =
+        token_literal_init(value, sizeof(double), number_to_string);
+    scanner_add_token_from_literal(scanner, TokenType_NUMBER, literal);
 }
 
 /**
@@ -217,7 +259,11 @@ static void scanner_scan_token(Scanner *const scanner) {
         break;
     // error if nothing matches
     default:
-        errorhandler_printerror(scanner->line, "Unexpected character.");
+        if (isdigit(c)) {
+            scanner_scan_number(scanner);
+        } else {
+            errorhandler_printerror(scanner->line, "Unexpected character.");
+        }
         break;
     }
 }
