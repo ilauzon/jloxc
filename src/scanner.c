@@ -77,7 +77,8 @@ static bool scanner_match(Scanner *const scanner, char expected) {
 
 /**
  * @brief A lookahead. Returns the current character without advancing to the
- * next character.
+ * next character. Returns a null terminator if the scanner had reached the end
+ * of its source code.
  *
  * @param scanner The scanner.
  * @return The character that the scanner is currently processing.
@@ -87,6 +88,45 @@ static char scanner_peek(Scanner const *const scanner) {
         return '\0';
     }
     return scanner->source[scanner->current];
+}
+
+static char const *string_to_string(void const *const string,
+                                    size_t const ignored) {
+    return string;
+}
+
+/**
+ * @brief Scan until the end of the current string lexeme is reached. Assumed to
+ * be called within a string, i.e. with `current` pointing to a character after
+ * the first `"` character.
+ *
+ * @param scanner The scanner.
+ */
+static void scanner_scan_string(Scanner *const scanner) {
+    while (scanner_peek(scanner) != '"' && !scanner_is_at_end(scanner)) {
+        if (scanner_peek(scanner) == '\n')
+            scanner->line++;
+        scanner_advance(scanner);
+    }
+
+    if (scanner_is_at_end(scanner)) {
+        errorhandler_printerror(scanner->line, "Unterminated string.");
+        return;
+    }
+
+    // consume the closing ".
+    scanner_advance(scanner);
+
+    // copy the string, trimming the surrounding quotes.
+    assert(scanner->current > scanner->start);
+    size_t string_length = scanner->current - scanner->start;
+    char *const string = malloc(string_length);
+    memcpy(string, scanner->source + scanner->start + 1, string_length - 2);
+    string[string_length - 1] = '\0';
+
+    Literal *const literal =
+        token_literal_init(string, string_length, string_to_string);
+    scanner_add_token_from_literal(scanner, TokenType_STRING, literal);
 }
 
 /**
@@ -171,6 +211,9 @@ static void scanner_scan_token(Scanner *const scanner) {
         break;
     case '\n':
         scanner->line++;
+        break;
+    case '"':
+        scanner_scan_string(scanner);
         break;
     // error if nothing matches
     default:

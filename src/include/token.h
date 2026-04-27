@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef char *(*LiteralToString)(void const *, size_t const);
+typedef char const *(*LiteralToString)(void const *, size_t const);
 
 /**
  * A literal value, used in struct `Token`.
@@ -12,7 +12,8 @@ typedef char *(*LiteralToString)(void const *, size_t const);
 typedef struct {
     /** A pointer to the start of the data in the literal. */
     void const *const value;
-    /** The number of bytes in `value`. */
+    /** The number of bytes in `value`. Needed for memory copies and
+     * allocations. */
     size_t const value_size;
     /** A pointer to a function to convert the literal to a string. */
     LiteralToString const to_string;

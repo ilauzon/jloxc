@@ -33,8 +33,7 @@ Token *token_init(enum TokenType const type, char const *const lexeme,
  * @brief Create a new `Literal`.
  *
  * @param value The literal's location in memory.
- * @param value_size The size of the literal in bytes. May be ignored by
- * `to_string`.
+ * @param value_size The size of the literal in bytes.
  * @param to_string The function to convert the literal to a human-readable
  * string.
  * @return A pointer to the literal that must be freed.

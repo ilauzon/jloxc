@@ -17,8 +17,18 @@ void run(char const line[static 1]) {
     scanner_scan_tokens(scanner, &token_list_size);
     printf("Number of tokens scanned: %ld\n", token_list_size);
     for (int i = 0; i < token_list_size; i++) {
-        enum TokenType type = scanner->tokens[i].type;
-        printf("[token %d]: \t%s\n", i, tokentype_to_string(type));
+        Token const *const token = scanner->tokens + i;
+        enum TokenType type = token->type;
+        Literal const *const literal = token->literal;
+
+        char const *literal_value = "<none>";
+        if (literal) {
+            literal_value =
+                literal->to_string(literal->value, literal->value_size);
+        }
+
+        printf("[Token %d]: \n\tType: \t\t%s \n\tLiteral:\t%s\n", i,
+               tokentype_to_string(type), literal_value);
     }
 }
 
