@@ -1,4 +1,4 @@
-COMPILE_FLAGS = -std=c17 -Wpedantic -Wall -Wextra
+COMPILE_FLAGS = -std=c17 -Wpedantic -Wall -Wextra -g
 SRC_DIR = src
 INCLUDE_DIR = $(SRC_DIR)/include
 BUILD_DIR = build

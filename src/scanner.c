@@ -16,7 +16,7 @@ static char scanner_advance(Scanner *const scanner) {
 /**
  * @brief Add a token to the scanner's token list.
  *
- * @param scanner
+ * @param scanner The scanner.
  * @param token The token to be added. This is shallow-copied into the scanner's
  * list, so the token may be freed after this call.
  */
@@ -26,8 +26,7 @@ void scanner_add_token(Scanner *const scanner, Token *const token) {
         scanner->tokens =
             realloc(scanner->tokens, scanner->tokens_mem_size * sizeof(Token));
     }
-    memcpy(scanner->tokens + (scanner->tokens_len++ * sizeof(Token)), token,
-           sizeof(Token));
+    memcpy(scanner->tokens + scanner->tokens_len++, token, sizeof(Token));
 }
 
 static void scanner_add_token_from_literal(Scanner *const scanner,
@@ -54,6 +53,15 @@ static void scanner_add_token_from_type(Scanner *const scanner,
     scanner_add_token_from_literal(scanner, type, NULL);
 }
 
+/**
+ * @brief Checks if the current character matches an `expected` character, and
+ * advances the scanner if so.
+ *
+ * @param scanner The scanner.
+ * @param expected The expected character to match the current character
+ * against.
+ * @return True if the current character matches `expected`, else false.
+ */
 static bool scanner_match(Scanner *const scanner, char expected) {
     if (scanner_is_at_end(scanner)) {
         return false;
@@ -67,6 +75,29 @@ static bool scanner_match(Scanner *const scanner, char expected) {
     return true;
 }
 
+/**
+ * @brief A lookahead. Returns the current character without advancing to the
+ * next character.
+ *
+ * @param scanner The scanner.
+ * @return The character that the scanner is currently processing.
+ */
+static char scanner_peek(Scanner const *const scanner) {
+    if (scanner_is_at_end(scanner)) {
+        return '\0';
+    }
+    return scanner->source[scanner->current];
+}
+
+/**
+ * @brief Scan in a single token from the current position of the scanner.
+ *
+ * The token is stored in the scanner's token list. If the current position is
+ * some ignorable text, like comments or whitespace, the scanner will still be
+ * advanced but no token is created.
+ *
+ * @param scanner The scanner.
+ */
 static void scanner_scan_token(Scanner *const scanner) {
     char c = scanner_advance(scanner);
     switch (c) {
@@ -121,6 +152,25 @@ static void scanner_scan_token(Scanner *const scanner) {
         scanner_add_token_from_type(scanner, scanner_match(scanner, '=')
                                                  ? TokenType_GREATER_EQUAL
                                                  : TokenType_GREATER);
+        break;
+    // > 2 character lexemes
+    case '/':
+        if (scanner_match(scanner, '/')) {
+            while (scanner_peek(scanner) != '\n' &&
+                   !scanner_is_at_end(scanner)) {
+                scanner_advance(scanner);
+            }
+        } else {
+            scanner_add_token_from_type(scanner, TokenType_SLASH);
+        }
+        break;
+    // whitespace
+    case ' ':
+    case '\r':
+    case '\t':
+        break;
+    case '\n':
+        scanner->line++;
         break;
     // error if nothing matches
     default:

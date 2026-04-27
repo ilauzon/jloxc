@@ -46,7 +46,7 @@ enum TokenType {
 #undef GENERATE_ENUM
 };
 
-inline char const *tokentype_to_string(enum TokenType t) {
+static char const *tokentype_to_string(enum TokenType t) {
     switch (t) {
 #define GENERATE_SWITCH_CASE(name)                                             \
     case TokenType##_##name:                                                   \

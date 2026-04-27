@@ -1,5 +1,6 @@
 #include "errorhandler.h"
-#include "token.h"
+#include "scanner.h"
+#include "tokentype.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,11 +12,14 @@ enum {
 };
 
 void run(char const line[static 1]) {
-    Token tokens[MAX_TOKENS_PER_LINE] = {0};
-    // int tokens_scanned = scanner_scan_tokens();
-    // for (int i = 0; i < tokens_scanned; ++i) {
-    //     // printf("%d", tokens[i].placeholder);
-    // }
+    Scanner *const scanner = scanner_init(line);
+    size_t token_list_size = -1;
+    scanner_scan_tokens(scanner, &token_list_size);
+    printf("Number of tokens scanned: %ld\n", token_list_size);
+    for (int i = 0; i < token_list_size; i++) {
+        enum TokenType type = scanner->tokens[i].type;
+        printf("[token %d]: \t%s\n", i, tokentype_to_string(type));
+    }
 }
 
 int run_file(char const path[static 1]) {
@@ -23,7 +27,6 @@ int run_file(char const path[static 1]) {
     if (!file) {
         char error_msg[100] = {0};
         snprintf(error_msg, 100, "Failed to open file %s.", path);
-        bool _;
         errorhandler_printerror(1, error_msg);
         return EXIT_FAILURE;
     }
