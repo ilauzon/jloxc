@@ -27,8 +27,10 @@ void run(char const line[static 1]) {
                 literal->to_string(literal->value, literal->value_size);
         }
 
-        printf("[Token %d]: \n\tType: \t\t%s \n\tLiteral:\t%s\n", i,
-               tokentype_to_string(type), literal_value);
+        printf("[Token %d]: \n\ttype: \t%s "
+               "\n\tlex:\t%s\n\tlit: \t%s\n\tline: \t%d\n",
+               i, tokentype_to_string(type), token->lexeme, literal_value,
+               token->line);
     }
 }
 

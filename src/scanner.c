@@ -171,6 +171,23 @@ static void scanner_scan_number(Scanner *const scanner) {
     scanner_add_token_from_literal(scanner, TokenType_NUMBER, literal);
 }
 
+static void scanner_scan_identifier(Scanner *const scanner) {
+    while (isalnum(scanner_peek(scanner))) {
+        scanner_advance(scanner);
+    }
+
+    // copy the string containing the identifier
+    assert(scanner->current > scanner->start);
+    size_t string_length = scanner->current - scanner->start + 1;
+    char *const string = malloc(string_length);
+    memcpy(string, scanner->source + scanner->start, string_length);
+    string[string_length - 1] = '\0';
+
+    enum TokenType type = tokentype_from_string(string);
+
+    scanner_add_token_from_type(scanner, type);
+}
+
 /**
  * @brief Scan in a single token from the current position of the scanner.
  *
@@ -235,7 +252,7 @@ static void scanner_scan_token(Scanner *const scanner) {
                                                  ? TokenType_GREATER_EQUAL
                                                  : TokenType_GREATER);
         break;
-    // > 2 character lexemes
+    // comments
     case '/':
         if (scanner_match(scanner, '/')) {
             while (scanner_peek(scanner) != '\n' &&
@@ -261,13 +278,14 @@ static void scanner_scan_token(Scanner *const scanner) {
     default:
         if (isdigit(c)) {
             scanner_scan_number(scanner);
+        } else if (isalpha(c)) {
+            scanner_scan_identifier(scanner);
         } else {
             errorhandler_printerror(scanner->line, "Unexpected character.");
         }
         break;
     }
 }
-
 Scanner *scanner_init(char const *const source) {
     size_t initial_token_list_size = 10;
     Token *token_list = calloc(initial_token_list_size, sizeof(Token));

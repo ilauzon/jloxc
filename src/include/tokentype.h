@@ -1,5 +1,5 @@
 #pragma once
-#define ENUM_LIST(X)                                                           \
+#define TOKENTYPE_ENUM_LIST(X)                                                 \
     X(LEFT_PAREN)                                                              \
     X(RIGHT_PAREN)                                                             \
     X(LEFT_BRACE)                                                              \
@@ -42,19 +42,10 @@
 
 enum TokenType {
 #define GENERATE_ENUM(name) TokenType##_##name,
-    ENUM_LIST(GENERATE_ENUM)
+    TOKENTYPE_ENUM_LIST(GENERATE_ENUM)
 #undef GENERATE_ENUM
 };
 
-static char const *tokentype_to_string(enum TokenType t) {
-    switch (t) {
-#define GENERATE_SWITCH_CASE(name)                                             \
-    case TokenType##_##name:                                                   \
-        return "TokenType_" #name;
-        ENUM_LIST(GENERATE_SWITCH_CASE)
-    default:
-        return "UNKNOWN";
-#undef GENERATE_SWITCH_CASE
-    }
-}
-#undef ENUM_LIST
+char const *tokentype_to_string(enum TokenType t);
+
+enum TokenType tokentype_from_string(char const *const string);
