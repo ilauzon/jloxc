@@ -54,9 +54,23 @@ static void scanner_add_token_from_type(Scanner *const scanner,
     scanner_add_token_from_literal(scanner, type, NULL);
 }
 
+static bool scanner_match(Scanner *const scanner, char expected) {
+    if (scanner_is_at_end(scanner)) {
+        return false;
+    }
+
+    if (scanner->source[scanner->current] != expected) {
+        return false;
+    }
+
+    scanner->current++;
+    return true;
+}
+
 static void scanner_scan_token(Scanner *const scanner) {
     char c = scanner_advance(scanner);
     switch (c) {
+    // single-character lexemes
     case '(':
         scanner_add_token_from_type(scanner, TokenType_LEFT_PAREN);
         break;
@@ -87,6 +101,28 @@ static void scanner_scan_token(Scanner *const scanner) {
     case '*':
         scanner_add_token_from_type(scanner, TokenType_STAR);
         break;
+    // two-character lexemes
+    case '!':
+        scanner_add_token_from_type(scanner, scanner_match(scanner, '=')
+                                                 ? TokenType_BANG_EQUAL
+                                                 : TokenType_BANG);
+        break;
+    case '=':
+        scanner_add_token_from_type(scanner, scanner_match(scanner, '=')
+                                                 ? TokenType_EQUAL_EQUAL
+                                                 : TokenType_EQUAL);
+        break;
+    case '<':
+        scanner_add_token_from_type(scanner, scanner_match(scanner, '=')
+                                                 ? TokenType_LESS_EQUAL
+                                                 : TokenType_LESS);
+        break;
+    case '>':
+        scanner_add_token_from_type(scanner, scanner_match(scanner, '=')
+                                                 ? TokenType_GREATER_EQUAL
+                                                 : TokenType_GREATER);
+        break;
+    // error if nothing matches
     default:
         errorhandler_printerror(scanner->line, "Unexpected character.");
         break;
