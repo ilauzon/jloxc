@@ -55,7 +55,7 @@ static void scanner_add_token_from_type(Scanner *const scanner,
 }
 
 /**
- * @brief Checks if the current character matches an `expected` character, and
+ * @brief Check if the current character matches an `expected` character, and
  * advances the scanner if so.
  *
  * @param scanner The scanner.
@@ -77,7 +77,7 @@ static bool scanner_match(Scanner *const scanner, char expected) {
 }
 
 /**
- * @brief A lookahead. Returns the current character without advancing to the
+ * @brief A lookahead. Return the current character without advancing to the
  * next character. Returns a null terminator if the scanner had reached the end
  * of its source code.
  *
@@ -188,6 +188,21 @@ static void scanner_scan_identifier(Scanner *const scanner) {
     scanner_add_token_from_type(scanner, type);
 }
 
+static void scanner_scan_block_comment(Scanner *const scanner) {
+    char c;
+    while (true) {
+        c = scanner_advance(scanner);
+        if (c == '\n') {
+            scanner->line++;
+        } else if (c == '*') {
+            bool comment_block_ended = scanner_match(scanner, '/');
+            if (comment_block_ended) {
+                break;
+            }
+        }
+    }
+}
+
 /**
  * @brief Scan in a single token from the current position of the scanner.
  *
@@ -259,6 +274,8 @@ static void scanner_scan_token(Scanner *const scanner) {
                    !scanner_is_at_end(scanner)) {
                 scanner_advance(scanner);
             }
+        } else if (scanner_match(scanner, '*')) {
+            scanner_scan_block_comment(scanner);
         } else {
             scanner_add_token_from_type(scanner, TokenType_SLASH);
         }

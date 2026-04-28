@@ -1,0 +1,7 @@
+/* This is a block comment.
+Line 1
+Line 2
+Line 3
+*/
+var numbers = 123
+var str = "abc"
