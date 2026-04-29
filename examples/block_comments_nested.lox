@@ -1,0 +1,10 @@
+/*
+Level 1 nesting
+/*
+Level 2 nesting
+/* Level 3 nesting */
+/* Level 3 nesting */
+*/
+*/
+var a = 1 or 2;
+

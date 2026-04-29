@@ -194,6 +194,8 @@ static void scanner_scan_block_comment(Scanner *const scanner) {
         c = scanner_advance(scanner);
         if (c == '\n') {
             scanner->line++;
+        } else if (c == '/' && scanner_match(scanner, '*')) {
+            scanner_scan_block_comment(scanner);
         } else if (c == '*') {
             bool comment_block_ended = scanner_match(scanner, '/');
             if (comment_block_ended) {
