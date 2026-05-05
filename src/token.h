@@ -1,22 +1,14 @@
 #pragma once
 #include "tokentype.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-typedef char const *(*LiteralToString)(void const *, size_t const);
 
 /**
  * A literal value, used in struct `Token`.
  */
-typedef struct {
-    /** A pointer to the start of the data in the literal. */
-    void const *const value;
-    /** The number of bytes in `value`. Needed for memory copies and
-     * allocations. */
-    size_t const value_size;
+typedef struct Literal {
     /** A pointer to a function to convert the literal to a string. */
-    LiteralToString const to_string;
+    char const *(*to_string)(struct Literal const *);
+    /** A pointer to the start of the data in the literal. */
+    void const *value;
 } Literal;
 
 /**
@@ -35,8 +27,15 @@ typedef struct {
     enum TokenType const type;
 } Token;
 
-Literal *token_literal_init(void const *const value, size_t const value_size,
-                            LiteralToString const to_string);
+Literal *token_literal_init_int(int value);
+Literal *token_literal_init_double(double value);
+Literal *token_literal_init_string(char const *const value);
+
+#define token_literal_init(x)                                                  \
+    _Generic((x),                                                              \
+        int: token_literal_init_int,                                           \
+        double: token_literal_init_double,                                     \
+        char *: token_literal_init_string)(x)
 
 Token *token_init(enum TokenType const type, char const *const lexeme,
                   Literal const *const literal, unsigned int const line);

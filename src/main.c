@@ -1,5 +1,9 @@
+#include "./expr/ast.h"
+#include "./expr/expr.h"
 #include "errorhandler.h"
+#include "expr/expr.h"
 #include "scanner.h"
+#include "token.h"
 #include "tokentype.h"
 #include <stdbool.h>
 #include <stdio.h>
@@ -13,18 +17,17 @@ enum {
 
 void run(char const line[static 1]) {
     Scanner *const scanner = scanner_init(line);
-    size_t token_list_size = -1;
+    size_t token_list_size = 0;
     scanner_scan_tokens(scanner, &token_list_size);
     printf("Number of tokens scanned: %ld\n", token_list_size);
-    for (int i = 0; i < token_list_size; i++) {
+    for (int i = 0; i < (long)token_list_size; i++) {
         Token const *const token = scanner->tokens + i;
         enum TokenType type = token->type;
         Literal const *const literal = token->literal;
 
         char const *literal_value = "<none>";
         if (literal) {
-            literal_value =
-                literal->to_string(literal->value, literal->value_size);
+            literal_value = literal->to_string(literal->value);
         }
 
         printf("[Token %d]: \n\ttype: \t%s "
@@ -76,12 +79,24 @@ int run_prompt(void) {
 }
 
 int main(int argc, char *argv[argc + 1]) {
-    if (argc > 2) {
-        printf("Usage: jlox [script]\n");
-        return EXIT_FAILURE;
-    } else if (argc == 2) {
-        return run_file(argv[1]);
-    } else {
-        return run_prompt();
-    }
+    int literal_1 = 123;
+    double literal_2 = 45.67;
+    ExprBinary *expression = expr_init_binary(
+        (Expr *)expr_init_unary(
+            token_init(TokenType_MINUS, "-", NULL, 1),
+            (Expr *)expr_init_literal(token_literal_init(literal_1))),
+        token_init(TokenType_STAR, "*", NULL, 1),
+        (Expr *)expr_init_grouping(
+            (Expr *)expr_init_literal(token_literal_init(literal_2))));
+    ExprVisitor *printer = ast_init_printer();
+    char const *str = printer->visit_binary(expression);
+    printf("%s\n", str);
+    // if (argc > 2) {
+    //     printf("Usage: jlox [script]\n");
+    //     return EXIT_FAILURE;
+    // } else if (argc == 2) {
+    //     return run_file(argv[1]);
+    // } else {
+    //     return run_prompt();
+    // }
 }

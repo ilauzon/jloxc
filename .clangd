@@ -1,6 +1,5 @@
 CompileFlags:
   Add:
-    - "-Iinclude"
     - "-std=c17"
     - "-Wpedantic"
     - "-Wall"

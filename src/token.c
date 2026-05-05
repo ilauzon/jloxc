@@ -1,4 +1,7 @@
 #include "token.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 /**
  * @brief Create a new token.
@@ -29,29 +32,48 @@ Token *token_init(enum TokenType const type, char const *const lexeme,
     return token;
 }
 
-/**
- * @brief Create a new `Literal`.
- *
- * @param value The literal's location in memory.
- * @param value_size The size of the literal in bytes.
- * @param to_string The function to convert the literal to a human-readable
- * string.
- * @return A pointer to the literal that must be freed.
- */
-Literal *token_literal_init(void const *const value, size_t const value_size,
-                            LiteralToString const to_string) {
-    Literal const literal_init = {
-        .to_string = to_string,
-        .value = value,
-        .value_size = value_size,
-    };
+/* String literals */
 
+char const *token_literal_string_to_string(Literal const *const it) {
+    return it->value;
+}
+
+Literal *token_literal_init_string(char const *const value) {
     Literal *literal = malloc(sizeof(Literal));
-    if (!literal) {
-        perror("memory allocation failed");
-        return NULL;
-    }
+    literal->value = value;
+    literal->to_string = token_literal_string_to_string;
+    return literal;
+}
 
-    memcpy(literal, &literal_init, sizeof(Literal));
+/* Floating-point literals */
+
+char const *token_literal_double_to_string(Literal const *const it) {
+    char *string = malloc(50);
+    snprintf(string, 50, "%f", *(double *)(it->value));
+    return string;
+}
+
+Literal *token_literal_init_double(double value) {
+    Literal *literal = malloc(sizeof(Literal));
+    double *value_ptr = malloc(sizeof(value));
+    memcpy(value_ptr, &value, sizeof(value));
+    literal->value = value_ptr;
+    literal->to_string = token_literal_double_to_string;
+    return literal;
+}
+
+/* Integer literals */
+
+char const *token_literal_int_to_string(Literal const *const it) {
+    char *string = malloc(50);
+    snprintf(string, 50, "%d", *(int *)(it->value));
+    return string;
+}
+Literal *token_literal_init_int(int value) {
+    Literal *literal = malloc(sizeof(Literal));
+    int *value_ptr = malloc(sizeof(value));
+    memcpy(value_ptr, &value, sizeof(value));
+    literal->value = value_ptr;
+    literal->to_string = token_literal_int_to_string;
     return literal;
 }

@@ -5,6 +5,8 @@
 #include <assert.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
 
 static bool scanner_is_at_end(Scanner const *const scanner) {
     return scanner->current >= strlen(scanner->source);
@@ -98,18 +100,6 @@ static char scanner_peek_next(Scanner const *const scanner) {
     return scanner->source[scanner->current + 1];
 }
 
-static char const *string_to_string(void const *const string,
-                                    size_t const ignored) {
-    return string;
-}
-
-static char const *number_to_string(void const *const number,
-                                    size_t const ignored) {
-    char *string = malloc(50);
-    snprintf(string, 50, "%f", *(double *)number);
-    return string;
-}
-
 /**
  * @brief Scan until the end of the current string lexeme is reached. Assumed to
  * be called within a string, i.e. with `current` pointing to a character after
@@ -139,8 +129,7 @@ static void scanner_scan_string(Scanner *const scanner) {
     memcpy(string, scanner->source + scanner->start + 1, string_length - 2);
     string[string_length - 1] = '\0';
 
-    Literal *const literal =
-        token_literal_init(string, string_length, string_to_string);
+    Literal *const literal = token_literal_init(string);
     scanner_add_token_from_literal(scanner, TokenType_STRING, literal);
 }
 
@@ -164,10 +153,8 @@ static void scanner_scan_number(Scanner *const scanner) {
     memcpy(string, scanner->source + scanner->start, string_length);
     string[string_length - 1] = '\0';
 
-    double *const value = malloc(sizeof(double));
-    *value = atof(string);
-    Literal *const literal =
-        token_literal_init(value, sizeof(double), number_to_string);
+    double value = atof(string);
+    Literal *const literal = token_literal_init(value);
     scanner_add_token_from_literal(scanner, TokenType_NUMBER, literal);
 }
 
