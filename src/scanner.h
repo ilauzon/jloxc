@@ -22,6 +22,5 @@ typedef struct {
     size_t tokens_mem_size;
 } Scanner;
 
-Scanner *scanner_init(char const *const source);
-Token *scanner_scan_tokens(Scanner *const scanner,
+Token *scanner_scan_tokens(char const *const source,
                            size_t *const token_list_size);

@@ -6,16 +6,16 @@ char const *ast_print(Expr *expr, ExprVisitor *visitor) {
     return expr->accept(expr, visitor);
 }
 
-static void *visit_binary(ExprBinary *expr) {
+static void *visit_binary(ExprBinary const *expr) {
     return (void *)expr->super.to_string(expr);
 }
-static void *visit_unary(ExprUnary *expr) {
+static void *visit_unary(ExprUnary const *expr) {
     return (void *)expr->super.to_string(expr);
 }
-static void *visit_literal(ExprLiteral *expr) {
+static void *visit_literal(ExprLiteral const *expr) {
     return (void *)expr->super.to_string(expr);
 }
-static void *visit_grouping(ExprGrouping *expr) {
+static void *visit_grouping(ExprGrouping const *expr) {
     return (void *)expr->super.to_string(expr);
 }
 ExprVisitor *ast_init_printer(void) {

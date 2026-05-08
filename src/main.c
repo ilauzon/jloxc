@@ -1,7 +1,6 @@
-#include "./expr/ast.h"
-#include "./expr/expr.h"
+#include "./parser/ast.h"
+#include "./parser/expr.h"
 #include "errorhandler.h"
-#include "expr/expr.h"
 #include "scanner.h"
 #include "token.h"
 #include "tokentype.h"
@@ -16,18 +15,17 @@ enum {
 };
 
 void run(char const line[static 1]) {
-    Scanner *const scanner = scanner_init(line);
     size_t token_list_size = 0;
-    scanner_scan_tokens(scanner, &token_list_size);
+    Token *tokens = scanner_scan_tokens(line, &token_list_size);
     printf("Number of tokens scanned: %ld\n", token_list_size);
     for (int i = 0; i < (long)token_list_size; i++) {
-        Token const *const token = scanner->tokens + i;
+        Token const *const token = tokens + i;
         enum TokenType type = token->type;
         Literal const *const literal = token->literal;
 
         char const *literal_value = "<none>";
         if (literal) {
-            literal_value = literal->to_string(literal->value);
+            literal_value = literal->to_string(literal);
         }
 
         printf("[Token %d]: \n\ttype: \t%s "
@@ -78,7 +76,7 @@ int run_prompt(void) {
     return EXIT_SUCCESS;
 }
 
-int main(int argc, char *argv[argc + 1]) {
+void run_example_ast_print() {
     int literal_1 = 123;
     double literal_2 = 45.67;
     ExprBinary *expression = expr_init_binary(
@@ -91,12 +89,16 @@ int main(int argc, char *argv[argc + 1]) {
     ExprVisitor *printer = ast_init_printer();
     char const *str = printer->visit_binary(expression);
     printf("%s\n", str);
-    // if (argc > 2) {
-    //     printf("Usage: jlox [script]\n");
-    //     return EXIT_FAILURE;
-    // } else if (argc == 2) {
-    //     return run_file(argv[1]);
-    // } else {
-    //     return run_prompt();
-    // }
+}
+
+int main(int argc, char *argv[argc + 1]) {
+    // run_example_ast_print();
+    if (argc > 2) {
+        printf("Usage: jlox [script]\n");
+        return EXIT_FAILURE;
+    } else if (argc == 2) {
+        return run_file(argv[1]);
+    } else {
+        return run_prompt();
+    }
 }

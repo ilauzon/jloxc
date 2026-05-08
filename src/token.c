@@ -62,18 +62,6 @@ Literal *token_literal_init_double(double value) {
     return literal;
 }
 
-/* Integer literals */
-
-char const *token_literal_int_to_string(Literal const *const it) {
-    char *string = malloc(50);
-    snprintf(string, 50, "%d", *(int *)(it->value));
-    return string;
-}
 Literal *token_literal_init_int(int value) {
-    Literal *literal = malloc(sizeof(Literal));
-    int *value_ptr = malloc(sizeof(value));
-    memcpy(value_ptr, &value, sizeof(value));
-    literal->value = value_ptr;
-    literal->to_string = token_literal_int_to_string;
-    return literal;
+    return token_literal_init_double(value);
 }

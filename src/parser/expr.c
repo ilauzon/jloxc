@@ -37,14 +37,18 @@ static char *ast_parenthesize(char const *const name, int arg_count, ...) {
     return string;
 }
 
-static void *binary_accept(void *visitee, ExprVisitor *visitor) {
+/* binary expressions */
+
+static void *binary_accept(void const *const visitee,
+                           ExprVisitor const *const visitor) {
     return visitor->visit_binary(visitee);
 }
-static char const *binary_to_string(void *expr) {
+static char const *binary_to_string(void const *const expr) {
     ExprBinary *e = (ExprBinary *)expr;
     return ast_parenthesize(e->operator->lexeme, 2, e->left, e->right);
 }
-ExprBinary *expr_init_binary(Expr *left, Token *operator, Expr *right) {
+ExprBinary *expr_init_binary(Expr const *left, Token const *const operator,
+                             Expr const *right) {
     ExprBinary *e = calloc(1, sizeof(ExprBinary));
     e->super.accept = binary_accept;
     e->super.to_string = binary_to_string;
@@ -54,14 +58,18 @@ ExprBinary *expr_init_binary(Expr *left, Token *operator, Expr *right) {
     return e;
 }
 
-static void *unary_accept(void *visitee, ExprVisitor *visitor) {
+/* unary expressions */
+
+static void *unary_accept(void const *const visitee,
+                          ExprVisitor const *const visitor) {
     return visitor->visit_unary(visitee);
 }
-static char const *unary_to_string(void *expr) {
+static char const *unary_to_string(void const *const expr) {
     ExprUnary *e = (ExprUnary *)expr;
     return ast_parenthesize(e->operator->lexeme, 1, e->right);
 }
-ExprUnary *expr_init_unary(Token *operator, Expr *right) {
+ExprUnary *expr_init_unary(Token const *const operator,
+                           Expr const *const right) {
     ExprUnary *e = calloc(1, sizeof(ExprUnary));
     e->super.accept = unary_accept;
     e->super.to_string = unary_to_string;
@@ -70,10 +78,13 @@ ExprUnary *expr_init_unary(Token *operator, Expr *right) {
     return e;
 }
 
-static void *literal_accept(void *visitee, ExprVisitor *visitor) {
+/* literals */
+
+static void *literal_accept(void const *const visitee,
+                            ExprVisitor const *const visitor) {
     return visitor->visit_literal(visitee);
 }
-static char const *literal_to_string(void *expr) {
+static char const *literal_to_string(void const *const expr) {
     ExprLiteral *e = (ExprLiteral *)expr;
     if (e->literal->value == NULL) {
         char *str = calloc(1, 4);
@@ -81,7 +92,7 @@ static char const *literal_to_string(void *expr) {
     }
     return (e->literal->to_string)(e->literal);
 }
-ExprLiteral *expr_init_literal(Literal *literal) {
+ExprLiteral *expr_init_literal(Literal const *const literal) {
     ExprLiteral *e = calloc(1, sizeof(ExprLiteral));
     e->super.accept = literal_accept;
     e->super.to_string = literal_to_string;
@@ -89,14 +100,17 @@ ExprLiteral *expr_init_literal(Literal *literal) {
     return e;
 }
 
-static void *grouping_accept(void *visitee, ExprVisitor *visitor) {
+/* groupings */
+
+static void *grouping_accept(void const *const visitee,
+                             ExprVisitor const *const visitor) {
     return visitor->visit_grouping(visitee);
 }
-static char const *grouping_to_string(void *expr) {
+static char const *grouping_to_string(void const *const expr) {
     ExprGrouping *e = (ExprGrouping *)expr;
     return ast_parenthesize("group", 1, e->expression);
 }
-ExprGrouping *expr_init_grouping(Expr *expression) {
+ExprGrouping *expr_init_grouping(Expr const *const expression) {
     ExprGrouping *e = calloc(1, sizeof(ExprGrouping));
     e->super.accept = grouping_accept;
     e->super.to_string = grouping_to_string;

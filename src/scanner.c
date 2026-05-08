@@ -8,11 +8,11 @@
 #include <stdio.h>
 #include <string.h>
 
-static bool scanner_is_at_end(Scanner const *const scanner) {
+static bool is_at_end(Scanner const *const scanner) {
     return scanner->current >= strlen(scanner->source);
 }
 
-static char scanner_advance(Scanner *const scanner) {
+static char advance(Scanner *const scanner) {
     return scanner->source[scanner->current++];
 }
 
@@ -23,7 +23,7 @@ static char scanner_advance(Scanner *const scanner) {
  * @param token The token to be added. This is shallow-copied into the scanner's
  * list, so the token may be freed after this call.
  */
-void scanner_add_token(Scanner *const scanner, Token *const token) {
+static void add_token(Scanner *const scanner, Token *const token) {
     if (scanner->tokens_len == scanner->tokens_mem_size) {
         scanner->tokens_mem_size *= 2;
         scanner->tokens =
@@ -32,28 +32,24 @@ void scanner_add_token(Scanner *const scanner, Token *const token) {
     memcpy(scanner->tokens + scanner->tokens_len++, token, sizeof(Token));
 }
 
-static void scanner_add_token_from_literal(Scanner *const scanner,
-                                           enum TokenType const type,
-                                           Literal const *const literal) {
+static void add_token_from_literal(Scanner *const scanner,
+                                   enum TokenType const type,
+                                   Literal const *const literal) {
     assert(scanner->start < scanner->current);
 
     size_t const lexeme_size = scanner->current - scanner->start;
     char *const lexeme = malloc(lexeme_size + 1);
-    if (!lexeme) {
-        perror("Memory allocation failed");
-        return;
-    }
     lexeme[lexeme_size] = '\0';
 
     strncpy(lexeme, scanner->source + scanner->start, lexeme_size);
     Token *token = token_init(type, lexeme, literal, scanner->line);
-    scanner_add_token(scanner, token);
+    add_token(scanner, token);
     free(token);
 }
 
-static void scanner_add_token_from_type(Scanner *const scanner,
+static void add_token_literal_from_type(Scanner *const scanner,
                                         enum TokenType const type) {
-    scanner_add_token_from_literal(scanner, type, NULL);
+    add_token_from_literal(scanner, type, NULL);
 }
 
 /**
@@ -65,8 +61,8 @@ static void scanner_add_token_from_type(Scanner *const scanner,
  * against.
  * @return True if the current character matches `expected`, else false.
  */
-static bool scanner_match(Scanner *const scanner, char expected) {
-    if (scanner_is_at_end(scanner)) {
+static bool match(Scanner *const scanner, char expected) {
+    if (is_at_end(scanner)) {
         return false;
     }
 
@@ -86,8 +82,8 @@ static bool scanner_match(Scanner *const scanner, char expected) {
  * @param scanner The scanner.
  * @return The character that the scanner is currently processing.
  */
-static char scanner_peek(Scanner const *const scanner) {
-    if (scanner_is_at_end(scanner)) {
+static char peek(Scanner const *const scanner) {
+    if (is_at_end(scanner)) {
         return '\0';
     }
     return scanner->source[scanner->current];
@@ -107,20 +103,20 @@ static char scanner_peek_next(Scanner const *const scanner) {
  *
  * @param scanner The scanner.
  */
-static void scanner_scan_string(Scanner *const scanner) {
-    while (scanner_peek(scanner) != '"' && !scanner_is_at_end(scanner)) {
-        if (scanner_peek(scanner) == '\n')
+static void scan_string(Scanner *const scanner) {
+    while (peek(scanner) != '"' && !is_at_end(scanner)) {
+        if (peek(scanner) == '\n')
             scanner->line++;
-        scanner_advance(scanner);
+        advance(scanner);
     }
 
-    if (scanner_is_at_end(scanner)) {
+    if (is_at_end(scanner)) {
         errorhandler_printerror(scanner->line, "Unterminated string.");
         return;
     }
 
     // consume the closing ".
-    scanner_advance(scanner);
+    advance(scanner);
 
     // copy the string, trimming the surrounding quotes.
     assert(scanner->current > scanner->start);
@@ -130,19 +126,19 @@ static void scanner_scan_string(Scanner *const scanner) {
     string[string_length - 1] = '\0';
 
     Literal *const literal = token_literal_init(string);
-    scanner_add_token_from_literal(scanner, TokenType_STRING, literal);
+    add_token_from_literal(scanner, TokenType_STRING, literal);
 }
 
-static void scanner_scan_number(Scanner *const scanner) {
-    while (isdigit(scanner_peek(scanner))) {
-        scanner_advance(scanner);
+static void scan_number(Scanner *const scanner) {
+    while (isdigit(peek(scanner))) {
+        advance(scanner);
     }
 
-    if (scanner_peek(scanner) == '.' && isdigit(scanner_peek_next(scanner))) {
-        scanner_advance(scanner);
+    if (peek(scanner) == '.' && isdigit(scanner_peek_next(scanner))) {
+        advance(scanner);
 
-        while (isdigit(scanner_peek(scanner))) {
-            scanner_advance(scanner);
+        while (isdigit(peek(scanner))) {
+            advance(scanner);
         }
     }
 
@@ -155,12 +151,12 @@ static void scanner_scan_number(Scanner *const scanner) {
 
     double value = atof(string);
     Literal *const literal = token_literal_init(value);
-    scanner_add_token_from_literal(scanner, TokenType_NUMBER, literal);
+    add_token_from_literal(scanner, TokenType_NUMBER, literal);
 }
 
-static void scanner_scan_identifier(Scanner *const scanner) {
-    while (isalnum(scanner_peek(scanner))) {
-        scanner_advance(scanner);
+static void scan_identifier(Scanner *const scanner) {
+    while (isalnum(peek(scanner))) {
+        advance(scanner);
     }
 
     // copy the string containing the identifier
@@ -172,19 +168,19 @@ static void scanner_scan_identifier(Scanner *const scanner) {
 
     enum TokenType type = tokentype_from_string(string);
 
-    scanner_add_token_from_type(scanner, type);
+    add_token_literal_from_type(scanner, type);
 }
 
-static void scanner_scan_block_comment(Scanner *const scanner) {
+static void scan_block_comment(Scanner *const scanner) {
     char c;
     while (true) {
-        c = scanner_advance(scanner);
+        c = advance(scanner);
         if (c == '\n') {
             scanner->line++;
-        } else if (c == '/' && scanner_match(scanner, '*')) {
-            scanner_scan_block_comment(scanner);
+        } else if (c == '/' && match(scanner, '*')) {
+            scan_block_comment(scanner);
         } else if (c == '*') {
-            bool comment_block_ended = scanner_match(scanner, '/');
+            bool comment_block_ended = match(scanner, '/');
             if (comment_block_ended) {
                 break;
             }
@@ -201,72 +197,71 @@ static void scanner_scan_block_comment(Scanner *const scanner) {
  *
  * @param scanner The scanner.
  */
-static void scanner_scan_token(Scanner *const scanner) {
-    char c = scanner_advance(scanner);
+static void scan_token(Scanner *const scanner) {
+    char c = advance(scanner);
     switch (c) {
     // single-character lexemes
     case '(':
-        scanner_add_token_from_type(scanner, TokenType_LEFT_PAREN);
+        add_token_literal_from_type(scanner, TokenType_LEFT_PAREN);
         break;
     case ')':
-        scanner_add_token_from_type(scanner, TokenType_RIGHT_PAREN);
+        add_token_literal_from_type(scanner, TokenType_RIGHT_PAREN);
         break;
     case '{':
-        scanner_add_token_from_type(scanner, TokenType_LEFT_BRACE);
+        add_token_literal_from_type(scanner, TokenType_LEFT_BRACE);
         break;
     case '}':
-        scanner_add_token_from_type(scanner, TokenType_RIGHT_BRACE);
+        add_token_literal_from_type(scanner, TokenType_RIGHT_BRACE);
         break;
     case ',':
-        scanner_add_token_from_type(scanner, TokenType_COMMA);
+        add_token_literal_from_type(scanner, TokenType_COMMA);
         break;
     case '.':
-        scanner_add_token_from_type(scanner, TokenType_DOT);
+        add_token_literal_from_type(scanner, TokenType_DOT);
         break;
     case '-':
-        scanner_add_token_from_type(scanner, TokenType_MINUS);
+        add_token_literal_from_type(scanner, TokenType_MINUS);
         break;
     case '+':
-        scanner_add_token_from_type(scanner, TokenType_PLUS);
+        add_token_literal_from_type(scanner, TokenType_PLUS);
         break;
     case ';':
-        scanner_add_token_from_type(scanner, TokenType_SEMICOLON);
+        add_token_literal_from_type(scanner, TokenType_SEMICOLON);
         break;
     case '*':
-        scanner_add_token_from_type(scanner, TokenType_STAR);
+        add_token_literal_from_type(scanner, TokenType_STAR);
         break;
     // two-character lexemes
     case '!':
-        scanner_add_token_from_type(scanner, scanner_match(scanner, '=')
+        add_token_literal_from_type(scanner, match(scanner, '=')
                                                  ? TokenType_BANG_EQUAL
                                                  : TokenType_BANG);
         break;
     case '=':
-        scanner_add_token_from_type(scanner, scanner_match(scanner, '=')
+        add_token_literal_from_type(scanner, match(scanner, '=')
                                                  ? TokenType_EQUAL_EQUAL
                                                  : TokenType_EQUAL);
         break;
     case '<':
-        scanner_add_token_from_type(scanner, scanner_match(scanner, '=')
+        add_token_literal_from_type(scanner, match(scanner, '=')
                                                  ? TokenType_LESS_EQUAL
                                                  : TokenType_LESS);
         break;
     case '>':
-        scanner_add_token_from_type(scanner, scanner_match(scanner, '=')
+        add_token_literal_from_type(scanner, match(scanner, '=')
                                                  ? TokenType_GREATER_EQUAL
                                                  : TokenType_GREATER);
         break;
     // comments
     case '/':
-        if (scanner_match(scanner, '/')) {
-            while (scanner_peek(scanner) != '\n' &&
-                   !scanner_is_at_end(scanner)) {
-                scanner_advance(scanner);
+        if (match(scanner, '/')) {
+            while (peek(scanner) != '\n' && !is_at_end(scanner)) {
+                advance(scanner);
             }
-        } else if (scanner_match(scanner, '*')) {
-            scanner_scan_block_comment(scanner);
+        } else if (match(scanner, '*')) {
+            scan_block_comment(scanner);
         } else {
-            scanner_add_token_from_type(scanner, TokenType_SLASH);
+            add_token_literal_from_type(scanner, TokenType_SLASH);
         }
         break;
     // whitespace
@@ -278,21 +273,21 @@ static void scanner_scan_token(Scanner *const scanner) {
         scanner->line++;
         break;
     case '"':
-        scanner_scan_string(scanner);
+        scan_string(scanner);
         break;
     // error if nothing matches
     default:
         if (isdigit(c)) {
-            scanner_scan_number(scanner);
+            scan_number(scanner);
         } else if (isalpha(c)) {
-            scanner_scan_identifier(scanner);
+            scan_identifier(scanner);
         } else {
             errorhandler_printerror(scanner->line, "Unexpected character.");
         }
         break;
     }
 }
-Scanner *scanner_init(char const *const source) {
+static Scanner *init(char const *const source) {
     size_t initial_token_list_size = 10;
     Token *token_list = calloc(initial_token_list_size, sizeof(Token));
     Scanner scanner_init = {
@@ -318,17 +313,20 @@ Scanner *scanner_init(char const *const source) {
  * @brief Scan the given source code string and convert it to a list of
  * tokens.
  *
- * @param scanner The scanner to use.
+ * @param source the string of source code.
  * @param token_list_size The number of tokens in the returned list.
  * @return A pointer to a list of the tokens scanned from the given source
  * code.
  */
-Token *scanner_scan_tokens(Scanner *const scanner,
+Token *scanner_scan_tokens(char const *const source,
                            size_t *const token_list_size) {
-    while (!scanner_is_at_end(scanner)) {
-        scanner_scan_token(scanner);
+    Scanner *scanner = init(source);
+    while (!is_at_end(scanner)) {
+        scan_token(scanner);
         scanner->start = scanner->current;
     }
     *token_list_size = scanner->tokens_len;
-    return scanner->tokens;
+    Token *tokens = scanner->tokens;
+    free(scanner);
+    return tokens;
 }
