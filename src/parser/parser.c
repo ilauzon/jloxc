@@ -1,3 +1,4 @@
+#include "parser.h"
 #include "../errorhandler.h"
 #include "../token.h"
 #include "../tokentype.h"
@@ -11,6 +12,12 @@ typedef struct {
     size_t tokens_len;
     int current;
 } Parser;
+
+/**
+ * @brief Flag for panic mode, where the parser will unwind until reaching a
+ * synchronization point.
+ */
+static bool panic_mode = false;
 
 static Parser *init(Token const *const tokens, size_t const tokens_len) {
     Parser *p = calloc(1, sizeof(Parser));
@@ -75,6 +82,11 @@ static bool check(Parser *parser, enum TokenType type) {
     return peek(parser)->type == type;
 }
 
+static void error(Token const *const token, char const *const message) {
+    errorhandler_printerror_token(token, message);
+    panic_mode = true;
+}
+
 /**
  * @brief Consume the current token and report an error if it does not match the
  * given type.
@@ -90,7 +102,7 @@ static Token const *consume(Parser *parser, enum TokenType type,
     if (token->type == type) {
         return advance(parser);
     }
-    errorhandler_printerror(token->line, message);
+    error(token, message);
     return NULL;
 }
 
@@ -111,85 +123,139 @@ static bool match(Parser *parser, int arg_count, ...) {
             return true;
         }
     }
-
     return false;
 }
 
 static Expr *expression(Parser *parser);
 
 static Expr *primary(Parser *parser) {
-    if (match(parser, 3, TokenType_FALSE, TokenType_TRUE, TokenType_NIL)) {
-        return (Expr *)expr_init_literal(previous(parser)->literal);
-    }
-
-    if (match(parser, 2, TokenType_NUMBER, TokenType_STRING)) {
-        return (Expr *)expr_init_literal(previous(parser)->literal);
+    Token const *const prev = previous(parser);
+    if (match(parser, 6, TokenType_FALSE, TokenType_TRUE, TokenType_NIL,
+              TokenType_NUMBER, TokenType_STRING, TokenType_IDENTIFIER)) {
+        void const *value_ptr = NULL;
+        if (prev->literal) {
+            value_ptr = prev->literal->value;
+        }
+        return (Expr *)expr_init_literal(prev->type, value_ptr);
     }
 
     if (match(parser, 1, TokenType_LEFT_PAREN)) {
         Expr *expr = expression(parser);
         consume(parser, TokenType_RIGHT_PAREN, "Expect ')' after expression.");
+        if (panic_mode) {
+            return NULL;
+        }
         return (Expr *)expr_init_grouping(expr);
     }
-
-    errorhandler_printerror(
-        parser->tokens[parser->current].line,
-        "Reached end of parser unexpectedly; primary production failed.");
-    /*
-     * is this the right thing to return if nothing
-     * matches in this root case?
-     */
+    error(peek(parser), "Expect expression");
     return NULL;
 }
+
 static Expr *unary(Parser *parser) {
     if (match(parser, 2, TokenType_BANG, TokenType_MINUS)) {
         Token const *operator = previous(parser);
         Expr *expr = unary(parser);
+        if (panic_mode) {
+            return NULL;
+        }
         return (Expr *)expr_init_unary(operator, expr);
     }
     return primary(parser);
 }
+
 static Expr *factor(Parser *parser) {
     Expr *expr = unary(parser);
+    if (panic_mode) {
+        return NULL;
+    }
     while (match(parser, 2, TokenType_SLASH, TokenType_STAR)) {
         Token const *operator = previous(parser);
         Expr *right = unary(parser);
+        if (panic_mode) {
+            return NULL;
+        }
         expr = (Expr *)expr_init_binary(expr, operator, right);
     }
     return expr;
 }
+
 static Expr *term(Parser *parser) {
     Expr *expr = factor(parser);
+    if (panic_mode) {
+        return NULL;
+    }
     while (match(parser, 2, TokenType_PLUS, TokenType_MINUS)) {
         Token const *operator = previous(parser);
         Expr *right = factor(parser);
+        if (panic_mode) {
+            return NULL;
+        }
         expr = (Expr *)expr_init_binary(expr, operator, right);
     }
     return expr;
 }
+
 static Expr *comparison(Parser *parser) {
     Expr *expr = term(parser);
+    if (panic_mode) {
+        return NULL;
+    }
     while (match(parser, 4, TokenType_GREATER, TokenType_GREATER_EQUAL,
                  TokenType_LESS_EQUAL, TokenType_LESS)) {
         Token const *operator = previous(parser);
         Expr *right = term(parser);
+        if (panic_mode) {
+            return NULL;
+        }
         expr = (Expr *)expr_init_binary(expr, operator, right);
     }
     return expr;
 }
+
 static Expr *equality(Parser *parser) {
     Expr *expr = comparison(parser);
+    if (panic_mode) {
+        return NULL;
+    }
     while (match(parser, 2, TokenType_BANG_EQUAL, TokenType_EQUAL_EQUAL)) {
         Token const *operator = previous(parser);
         Expr *right = comparison(parser);
+        if (panic_mode) {
+            return NULL;
+        }
         expr = (Expr *)expr_init_binary(expr, operator, right);
     }
     return expr;
 }
+
 static Expr *expression(Parser *parser) { return equality(parser); }
 
-Expr *parser_parse_expression(Token const *const tokens,
-                              size_t const tokens_len) {
+static void synchronize(Parser *parser) {
+    panic_mode = false;
+    advance(parser);
+    while (!is_at_end(parser)) {
+        if (previous(parser)->type == TokenType_SEMICOLON) {
+            return;
+        }
+        switch (peek(parser)->type) {
+        case TokenType_CLASS:
+        case TokenType_FUN:
+        case TokenType_VAR:
+        case TokenType_FOR:
+        case TokenType_IF:
+        case TokenType_WHILE:
+        case TokenType_PRINT:
+        case TokenType_RETURN:
+            return;
+        default:
+            break;
+        }
+        advance(parser);
+    }
+}
+
+Expr *parser_parse(Token const *const tokens, size_t const tokens_len) {
     Parser *parser = init(tokens, tokens_len);
-    return expression(parser);
+    Expr *expr = expression(parser);
+    return expr;
 }

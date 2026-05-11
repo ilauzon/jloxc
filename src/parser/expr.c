@@ -1,5 +1,7 @@
 #include "expr.h"
 #include <stdarg.h>
+#include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -84,19 +86,50 @@ static void *literal_accept(void const *const visitee,
                             ExprVisitor const *const visitor) {
     return visitor->visit_literal(visitee);
 }
+/**
+ * @brief Get the string representation of an expression literal.
+ *
+ * @param expr the expression literal.
+ * @return A free-able pointer to the new string.
+ */
 static char const *literal_to_string(void const *const expr) {
     ExprLiteral *e = (ExprLiteral *)expr;
-    if (e->literal->value == NULL) {
-        char *str = calloc(1, 4);
+    char *str;
+    switch (e->type) {
+    case TokenType_NIL:
+        str = calloc(1, 4);
         memcpy(str, "nil", 4);
+        break;
+    case TokenType_TRUE:
+        str = calloc(1, 5);
+        memcpy(str, "true", 5);
+        break;
+    case TokenType_FALSE:
+        str = calloc(1, 5);
+        memcpy(str, "false", 5);
+        break;
+    case TokenType_STRING:;
+        size_t len = strlen(e->value) + 1;
+        str = calloc(1, len);
+        memcpy(str, e->value, len);
+        break;
+    case TokenType_NUMBER:
+        str = malloc(50);
+        snprintf(str, 50, "%f", *(double *)(e->value));
+        break;
+    default:
+        str = calloc(1, 1); // free-able empty string in default case
     }
-    return (e->literal->to_string)(e->literal);
+    return str;
 }
-ExprLiteral *expr_init_literal(Literal const *const literal) {
+
+ExprLiteral *expr_init_literal(enum TokenType const type,
+                               void const *const value) {
     ExprLiteral *e = calloc(1, sizeof(ExprLiteral));
     e->super.accept = literal_accept;
     e->super.to_string = literal_to_string;
-    e->literal = literal;
+    e->type = type;
+    e->value = value;
     return e;
 }
 

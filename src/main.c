@@ -1,6 +1,6 @@
-#include "./parser/ast.h"
-#include "./parser/expr.h"
+#include "./parser/parser.h"
 #include "errorhandler.h"
+#include "parser/ast.h"
 #include "scanner.h"
 #include "token.h"
 #include "tokentype.h"
@@ -14,11 +14,9 @@ enum {
     MAX_TOKENS_PER_LINE = 500,
 };
 
-void run(char const line[static 1]) {
-    size_t token_list_size = 0;
-    Token *tokens = scanner_scan_tokens(line, &token_list_size);
-    printf("Number of tokens scanned: %ld\n", token_list_size);
-    for (int i = 0; i < (long)token_list_size; i++) {
+static void print_tokens(size_t tokens_len, Token tokens[tokens_len]) {
+    printf("Number of tokens scanned: %ld\n", tokens_len);
+    for (size_t i = 0; i < tokens_len; i++) {
         Token const *const token = tokens + i;
         enum TokenType type = token->type;
         Literal const *const literal = token->literal;
@@ -28,11 +26,38 @@ void run(char const line[static 1]) {
             literal_value = literal->to_string(literal);
         }
 
-        printf("[Token %d]: \n\ttype: \t%s "
+        printf("[Token %ld]: \n\ttype: \t%s "
                "\n\tlex:\t%s\n\tlit: \t%s\n\tline: \t%d\n",
                i, tokentype_to_string(type), token->lexeme, literal_value,
                token->line);
     }
+}
+
+static void print_expressions(size_t exprs_len, Expr exprs[exprs_len]) {
+    for (size_t i = 0; i < exprs_len; ++i) {
+        ExprVisitor *printer = ast_init_printer();
+        char const *str = exprs[i].accept(exprs + i, printer);
+        printf("%s\n", str);
+    }
+}
+
+void run(char const line[static 1]) {
+    size_t token_list_size = 0;
+    Token *tokens = scanner_scan_tokens(line, &token_list_size);
+
+    if (errorhandler_haderror()) {
+        return;
+    }
+
+    print_tokens(token_list_size, tokens);
+
+    Expr *expr = parser_parse(tokens, token_list_size);
+
+    if (errorhandler_haderror()) {
+        return;
+    }
+
+    print_expressions(1, expr);
 }
 
 int run_file(char const path[static 1]) {
@@ -76,16 +101,16 @@ int run_prompt(void) {
     return EXIT_SUCCESS;
 }
 
-void run_example_ast_print() {
+void run_example_ast_print(void) {
     int literal_1 = 123;
     double literal_2 = 45.67;
     ExprBinary *expression = expr_init_binary(
         (Expr *)expr_init_unary(
             token_init(TokenType_MINUS, "-", NULL, 1),
-            (Expr *)expr_init_literal(token_literal_init(literal_1))),
+            (Expr *)expr_init_literal(TokenType_NUMBER, &literal_1)),
         token_init(TokenType_STAR, "*", NULL, 1),
         (Expr *)expr_init_grouping(
-            (Expr *)expr_init_literal(token_literal_init(literal_2))));
+            (Expr *)expr_init_literal(TokenType_NUMBER, &literal_2)));
     ExprVisitor *printer = ast_init_printer();
     char const *str = printer->visit_binary(expression);
     printf("%s\n", str);

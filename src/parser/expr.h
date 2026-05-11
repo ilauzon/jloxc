@@ -36,9 +36,11 @@ ExprUnary *expr_init_unary(Token const *operator, Expr const * right);
 
 typedef struct ExprLiteral {
     Expr super;
-    Literal const *literal;
+    enum TokenType type;
+    void const *value;
 } ExprLiteral;
-ExprLiteral *expr_init_literal(Literal const *literal);
+ExprLiteral *expr_init_literal(enum TokenType const type,
+                               void const *const value);
 
 typedef struct ExprGrouping {
     Expr super;
