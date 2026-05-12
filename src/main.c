@@ -109,12 +109,11 @@ void run_example_ast_print(void) {
         token_init(TokenType_STAR, "*", NULL, 1),
         (Expr *)expr_init_grouping(
             (Expr *)expr_init_literal(TokenType_NUMBER, &literal_2)));
-    char const *str = expression->super.to_string(expression);
-    printf("%s\n", str);
+    print_expressions(1, (Expr *)expression);
 }
 
 int main(int argc, char *argv[argc + 1]) {
-    // run_example_ast_print();
+    run_example_ast_print();
     if (argc > 2) {
         printf("Usage: jlox [script]\n");
         return EXIT_FAILURE;

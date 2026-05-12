@@ -129,9 +129,9 @@ static bool match(Parser *parser, int arg_count, ...) {
 static Expr *expression(Parser *parser);
 
 static Expr *primary(Parser *parser) {
-    Token const *const prev = previous(parser);
     if (match(parser, 6, TokenType_FALSE, TokenType_TRUE, TokenType_NIL,
               TokenType_NUMBER, TokenType_STRING, TokenType_IDENTIFIER)) {
+        Token const *const prev = previous(parser);
         void const *value_ptr = NULL;
         if (prev->literal) {
             value_ptr = prev->literal->value;
