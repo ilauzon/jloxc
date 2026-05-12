@@ -1,3 +1,20 @@
+/**
+ * Contains productions for parsing a string of tokens.
+ *
+ * Expression grammar:
+ *
+ * comma          -> expression ( , expression )* ;
+ * expression     -> equality ;
+ * equality       -> comparison ( ( "!=" | "==" ) comparison )* ;
+ * comparison     -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+ * term           -> factor ( ( "-" | "+" ) factor )* ;
+ * factor         -> unary ( ( "/" | "*" ) unary )* ;
+ * unary          -> ( "!" | "-" ) unary
+ *                   | primary ;
+ * primary        -> NUMBER | STRING | "true" | "false" | "nil"
+ *                   | "(" expression ")" ;
+ */
+
 #include "parser.h"
 #include "../errorhandler.h"
 #include "../token.h"
@@ -230,6 +247,22 @@ static Expr *equality(Parser *parser) {
 
 static Expr *expression(Parser *parser) { return equality(parser); }
 
+static Expr *comma(Parser *parser) {
+    Expr *expr = expression(parser);
+    if (panic_mode) {
+        return NULL;
+    }
+    while (match(parser, 1, TokenType_COMMA)) {
+        Token const *operator = previous(parser);
+        Expr *right = expression(parser);
+        if (panic_mode) {
+            return NULL;
+        }
+        expr = (Expr *)expr_init_binary(expr, operator, right);
+    }
+    return expr;
+}
+
 static void synchronize(Parser *parser) {
     panic_mode = false;
     advance(parser);
@@ -254,8 +287,10 @@ static void synchronize(Parser *parser) {
     }
 }
 
-Expr *parser_parse(Token const *const tokens, size_t const tokens_len) {
+Expr *parser_parse(Token const *const tokens, size_t const tokens_len,
+                   size_t *exprs_len) {
     Parser *parser = init(tokens, tokens_len);
-    Expr *expr = expression(parser);
+    Expr *expr = comma(parser);
+    *exprs_len = 1;
     return expr;
 }

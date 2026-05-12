@@ -49,13 +49,14 @@ void run(char const line[static 1]) {
 
     print_tokens(token_list_size, tokens);
 
-    Expr *expr = parser_parse(tokens, token_list_size);
+    size_t exprs_len = 0;
+    Expr *expr = parser_parse(tokens, token_list_size, &exprs_len);
 
     if (errorhandler_haderror()) {
         return;
     }
 
-    print_expressions(1, expr);
+    print_expressions(exprs_len, expr);
 }
 
 int run_file(char const path[static 1]) {
