@@ -1,6 +1,5 @@
 #include "./parser/parser.h"
 #include "errorhandler.h"
-#include "parser/ast.h"
 #include "scanner.h"
 #include "token.h"
 #include "tokentype.h"
@@ -35,8 +34,7 @@ static void print_tokens(size_t tokens_len, Token tokens[tokens_len]) {
 
 static void print_expressions(size_t exprs_len, Expr exprs[exprs_len]) {
     for (size_t i = 0; i < exprs_len; ++i) {
-        ExprVisitor *printer = ast_init_printer();
-        char const *str = exprs[i].accept(exprs + i, printer);
+        char const *str = exprs[i].to_string(exprs + i);
         printf("%s\n", str);
     }
 }
@@ -111,8 +109,7 @@ void run_example_ast_print(void) {
         token_init(TokenType_STAR, "*", NULL, 1),
         (Expr *)expr_init_grouping(
             (Expr *)expr_init_literal(TokenType_NUMBER, &literal_2)));
-    ExprVisitor *printer = ast_init_printer();
-    char const *str = printer->visit_binary(expression);
+    char const *str = expression->super.to_string(expression);
     printf("%s\n", str);
 }
 

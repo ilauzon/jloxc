@@ -6,15 +6,8 @@ typedef struct ExprUnary ExprUnary;
 typedef struct ExprLiteral ExprLiteral;
 typedef struct ExprGrouping ExprGrouping;
 
-typedef struct ExprVisitor {
-    void *(*visit_binary)(ExprBinary const *expr);
-    void *(*visit_unary)(ExprUnary const *expr);
-    void *(*visit_literal)(ExprLiteral const *expr);
-    void *(*visit_grouping)(ExprGrouping const *expr);
-} ExprVisitor;
-
 typedef struct Expr {
-    void *(*accept)(void const *data, ExprVisitor const *visitor);
+    // Get a free-able string representation of the expression.
     char const *(*to_string)(void const *self);
 } Expr;
 
