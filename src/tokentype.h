@@ -11,6 +11,8 @@
     X(SEMICOLON)                                                               \
     X(SLASH)                                                                   \
     X(STAR)                                                                    \
+    X(QUESTION)                                                                \
+    X(COLON)                                                                   \
     X(BANG)                                                                    \
     X(BANG_EQUAL)                                                              \
     X(EQUAL)                                                                   \

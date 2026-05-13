@@ -231,6 +231,12 @@ static void scan_token(Scanner *const scanner) {
     case '*':
         add_token_literal_from_type(scanner, TokenType_STAR);
         break;
+    case '?':
+        add_token_literal_from_type(scanner, TokenType_QUESTION);
+        break;
+    case ':':
+        add_token_literal_from_type(scanner, TokenType_COLON);
+        break;
     // two-character lexemes
     case '!':
         add_token_literal_from_type(scanner, match(scanner, '=')

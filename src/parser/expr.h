@@ -12,6 +12,18 @@ typedef struct Expr {
     char const *(*to_string)(void const *self);
 } Expr;
 
+typedef struct ExprTernary {
+    Expr super;
+    Expr const *left;
+    Token const *operator_left;
+    Expr const *middle;
+    Token const *operator_right;
+    Expr const *right;
+} ExprTernary;
+ExprTernary *expr_init_ternary(Expr const *left, Token const *operator_left,
+                               Expr const *middle, Token const *operator_right,
+                               Expr const *right);
+
 typedef struct ExprBinary {
     Expr super;
     Expr const *left;

@@ -11,6 +11,8 @@
  * term           -> factor ( ( "-" | "+" ) factor )* ;
  * factor         -> unary ( ( "/" | "*" ) unary )* ;
  * unary          -> ( "!" | "-" ) unary
+ *                   | conditional ;
+ * conditional    -> primary ? primary : conditional
  *                   | primary ;
  * primary        -> NUMBER | STRING | "true" | "false" | "nil"
  *                   | "(" expression ")" ;
@@ -176,6 +178,34 @@ static Expr *primary(Parser *parser) {
     return NULL;
 }
 
+static Expr *conditional(Parser *parser) {
+    Expr *expr = primary(parser);
+    if (panic_mode) {
+        return NULL;
+    }
+
+    if (match(parser, 1, TokenType_QUESTION)) {
+        Token const *left_operator = previous(parser);
+        Expr *middle_expr = primary(parser);
+        if (panic_mode) {
+            return NULL;
+        }
+        consume(parser, TokenType_COLON,
+                "Expect ':' after '?' in ternary conditional.");
+        if (panic_mode) {
+            return NULL;
+        }
+        Token const *right_operator = previous(parser);
+        Expr *right_expr = conditional(parser);
+        if (panic_mode) {
+            return NULL;
+        }
+        expr = (Expr *)expr_init_ternary(expr, left_operator, middle_expr,
+                                         right_operator, right_expr);
+    }
+    return expr;
+}
+
 static Expr *unary(Parser *parser) {
     if (match(parser, 2, TokenType_BANG, TokenType_MINUS)) {
         Token const *operator = previous(parser);
@@ -185,7 +215,7 @@ static Expr *unary(Parser *parser) {
         }
         return (Expr *)expr_init_unary(operator, expr);
     }
-    return primary(parser);
+    return conditional(parser);
 }
 
 static Expr *factor(Parser *parser) {

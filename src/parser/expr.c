@@ -40,6 +40,32 @@ static char *ast_parenthesize(char const *const name, int arg_count, ...) {
     return string;
 }
 
+/* ternary expressions */
+
+static char const *ternary_to_string(void const *const expr) {
+    ExprTernary *e = (ExprTernary *)expr;
+    size_t op1_strlen = strlen(e->operator_left->lexeme);
+    size_t op2_strlen = strlen(e->operator_right->lexeme);
+    char *str = calloc(1, op1_strlen + op2_strlen + 1);
+    memcpy(str, e->operator_left->lexeme, op1_strlen);
+    memcpy(str + op1_strlen, e->operator_right->lexeme, op2_strlen);
+    return ast_parenthesize(str, 3, e->left, e->middle, e->right);
+    free(str);
+}
+
+ExprTernary *expr_init_ternary(Expr const *left, Token const *operator_left,
+                               Expr const *middle, Token const *operator_right,
+                               Expr const *right) {
+    ExprTernary *e = calloc(1, sizeof(ExprTernary));
+    e->super.to_string = ternary_to_string;
+    e->left = left;
+    e->operator_left = operator_left;
+    e->middle = middle;
+    e->operator_right = operator_right;
+    e->right = right;
+    return e;
+}
+
 /* binary expressions */
 
 static char const *binary_to_string(void const *const expr) {
