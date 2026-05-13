@@ -20,10 +20,10 @@ void errorhandler_printerror(int line, char const message[static 1]) {
 void errorhandler_printerror_token(Token const *const token,
                                    char const message[static 1]) {
     if (token->type == TokenType_EOF) {
-        report(token->line, " at end", message);
+        report(token->line, "at end", message);
     } else {
         char str[100] = {0};
-        snprintf(str, 100, " at '%s'", token->lexeme);
+        snprintf(str, 100, "at '%s'", token->lexeme);
         report(token->line, str, message);
     }
 }

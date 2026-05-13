@@ -325,8 +325,21 @@ Token *scanner_scan_tokens(char const *const source,
         scan_token(scanner);
         scanner->start = scanner->current;
     }
+
+    scanner->tokens_len++;
+    scanner->tokens =
+        realloc(scanner->tokens, scanner->tokens_len * sizeof(Token));
+
+    Token eof = {
+        .lexeme = "<EOF>",
+        .line = scanner->line,
+        .literal = NULL,
+        .type = TokenType_EOF,
+    };
+    memcpy(scanner->tokens + scanner->tokens_len - 1, &eof, sizeof(Token));
     *token_list_size = scanner->tokens_len;
     Token *tokens = scanner->tokens;
     free(scanner);
+
     return tokens;
 }
