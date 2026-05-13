@@ -5,7 +5,8 @@
  *
  * comma          -> expression ( , expression )* ;
  * expression     -> equality ;
- * equality       -> comparison ( ( "!=" | "==" ) comparison )* ;
+ * equality       -> comparison ( ( "!=" | "==" ) comparison )*
+ *                   | comparison "?" expression ":" expression;
  * comparison     -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
  * term           -> factor ( ( "-" | "+" ) factor )* ;
  * factor         -> unary ( ( "/" | "*" ) unary )* ;
@@ -124,13 +125,14 @@ static Token const *consume(Parser *parser, enum TokenType type,
 }
 
 /**
- * @brief Check if the parser's current token matches one in a set of types.
+ * @brief Check if the parser's current token matches one in a set of types, and
+ * advance if this is the case.
  *
  * @param arg_count the number of types being passed in.
  * @return False if the current token is `TokenType_EOF` or if the current
  * token's type does not match any of the given types, true otherwise.
  */
-static bool match(Parser *parser, int arg_count, ...) {
+static bool match(Parser *const parser, int const arg_count, ...) {
     va_list types;
     va_start(types, arg_count);
     for (int i = 0; i < arg_count; i++) {
@@ -143,17 +145,23 @@ static bool match(Parser *parser, int arg_count, ...) {
     return false;
 }
 
+/**
+ * @brief Check if the parser's current token is a candidate to become an
+ * `ExprLiteral`.
+ *
+ * @return true if the current token can be an `ExprLiteral`, false otherwise.
+ */
+static bool check_for_literal(Parser *const parser) {
+    enum TokenType type = peek(parser)->type;
+    return expr_type_is_literal(type);
+}
+
 static Expr *expression(Parser *parser);
 
 static Expr *primary(Parser *parser) {
-    if (match(parser, 6, TokenType_FALSE, TokenType_TRUE, TokenType_NIL,
-              TokenType_NUMBER, TokenType_STRING, TokenType_IDENTIFIER)) {
-        Token const *const prev = previous(parser);
-        void const *value_ptr = NULL;
-        if (prev->literal) {
-            value_ptr = prev->literal->value;
-        }
-        return (Expr *)expr_init_literal(prev->type, value_ptr);
+    if (check_for_literal(parser)) {
+        Token const *const current = advance(parser);
+        return (Expr *)expr_init_literal(current);
     }
 
     if (match(parser, 1, TokenType_LEFT_PAREN)) {

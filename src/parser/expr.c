@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "../errorhandler.h"
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -81,6 +82,7 @@ ExprUnary *expr_init_unary(Token const *const operator,
 static char const *literal_to_string(void const *const expr) {
     ExprLiteral *e = (ExprLiteral *)expr;
     char *str;
+    size_t len;
     switch (e->type) {
     case TokenType_NIL:
         str = calloc(1, 4);
@@ -94,8 +96,9 @@ static char const *literal_to_string(void const *const expr) {
         str = calloc(1, 5);
         memcpy(str, "false", 5);
         break;
-    case TokenType_STRING:;
-        size_t len = strlen(e->value) + 1;
+    case TokenType_IDENTIFIER:
+    case TokenType_STRING:
+        len = strlen(e->value) + 1;
         str = calloc(1, len);
         memcpy(str, e->value, len);
         break;
@@ -109,12 +112,45 @@ static char const *literal_to_string(void const *const expr) {
     return str;
 }
 
-ExprLiteral *expr_init_literal(enum TokenType const type,
-                               void const *const value) {
+bool expr_type_is_literal(enum TokenType const type) {
+    switch (type) {
+    case TokenType_NIL:
+    case TokenType_TRUE:
+    case TokenType_FALSE:
+    case TokenType_IDENTIFIER:
+    case TokenType_STRING:
+    case TokenType_NUMBER:
+        return true;
+    default:
+        return false;
+    }
+}
+
+ExprLiteral *expr_init_literal(Token const *const token) {
+    if (!expr_type_is_literal(token->type)) {
+        errorhandler_printerror_token(
+            token, "Attempted call to instantiate literal token as ExprLiteral "
+                   "with incompatible TokenType, stopping!");
+        return NULL;
+    }
     ExprLiteral *e = calloc(1, sizeof(ExprLiteral));
     e->super.to_string = literal_to_string;
-    e->type = type;
-    e->value = value;
+    e->type = token->type;
+
+    switch (token->type) {
+    case TokenType_IDENTIFIER:
+        e->value = token->lexeme;
+        break;
+    case TokenType_STRING:
+        e->value = token->literal->value;
+        break;
+    case TokenType_NUMBER:
+        e->value = token->literal->value;
+        break;
+    default:
+        e->value = 0;
+    }
+
     return e;
 }
 

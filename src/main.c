@@ -101,15 +101,15 @@ int run_prompt(void) {
 }
 
 void run_example_ast_print(void) {
-    int literal_1 = 123;
-    double literal_2 = 45.67;
+    Literal *literal_1 = token_literal_init(123);
+    Literal *literal_2 = token_literal_init(45.67);
+    Token *token_1 = token_init(TokenType_NUMBER, "123", literal_1, 1);
+    Token *token_2 = token_init(TokenType_NUMBER, "45.67", literal_2, 1);
     ExprBinary *expression = expr_init_binary(
-        (Expr *)expr_init_unary(
-            token_init(TokenType_MINUS, "-", NULL, 1),
-            (Expr *)expr_init_literal(TokenType_NUMBER, &literal_1)),
+        (Expr *)expr_init_unary(token_init(TokenType_MINUS, "-", NULL, 1),
+                                (Expr *)expr_init_literal(token_1)),
         token_init(TokenType_STAR, "*", NULL, 1),
-        (Expr *)expr_init_grouping(
-            (Expr *)expr_init_literal(TokenType_NUMBER, &literal_2)));
+        (Expr *)expr_init_grouping((Expr *)expr_init_literal(token_2)));
     print_expressions(1, (Expr *)expression);
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 #include "../token.h"
+#include <stdbool.h>
 
 typedef struct ExprBinary ExprBinary;
 typedef struct ExprUnary ExprUnary;
@@ -32,11 +33,12 @@ typedef struct ExprLiteral {
     enum TokenType type;
     void const *value;
 } ExprLiteral;
-ExprLiteral *expr_init_literal(enum TokenType const type,
-                               void const *const value);
+ExprLiteral *expr_init_literal(Token const *const token);
 
 typedef struct ExprGrouping {
     Expr super;
     Expr const *expression;
 } ExprGrouping;
 ExprGrouping *expr_init_grouping(Expr const *expression);
+
+bool expr_type_is_literal(enum TokenType const type);
