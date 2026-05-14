@@ -3,19 +3,26 @@
  *
  * Expression grammar:
  *
- * comma          -> expression ( , expression )* ;
- * expression     -> equality ;
- * equality       -> comparison ( ( "!=" | "==" ) comparison )*
- *                   | comparison "?" expression ":" expression;
- * comparison     -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
- * term           -> factor ( ( "-" | "+" ) factor )* ;
- * factor         -> unary ( ( "/" | "*" ) unary )* ;
- * unary          -> ( "!" | "-" ) unary
- *                   | conditional ;
- * conditional    -> primary ? primary : conditional
- *                   | primary ;
- * primary        -> NUMBER | STRING | "true" | "false" | "nil"
- *                   | "(" expression ")" ;
+ * comma              -> conditional ( "," conditional )* ;
+ * conditional        -> expression ? expression : conditional
+ *                       | expression ;
+ * expression         -> equality ;
+ * equality           -> comparison ( equality_rhs )*
+ *                       | equality_rhs ;
+ * equality_rhs       -> ( "!=" | "==" ) comparison ;
+ * comparison         -> term ( comparison_rhs )*
+ *                       | comparison_rhs ;
+ * comparison_rhs     -> ( ">" | ">=" | "<" | "<=" ) term ;
+ * term               -> factor ( term_rhs )*
+ *                       | term_rhs ;
+ * term_rhs           -> ( "-" | "+" ) factor ;
+ * factor             -> unary ( factor_rhs )*
+ *                       | factor_rhs;
+ * factor_rhs         -> ( "/" | "*" ) unary ;
+ * unary              -> ( "!" | "-" ) unary
+ *                       | conditional ;
+ * primary            -> NUMBER | STRING | "true" | "false" | "nil"
+ *                       | "(" expression ")" ;
  */
 
 #include "parser.h"
@@ -178,34 +185,6 @@ static Expr *primary(Parser *parser) {
     return NULL;
 }
 
-static Expr *conditional(Parser *parser) {
-    Expr *expr = primary(parser);
-    if (panic_mode) {
-        return NULL;
-    }
-
-    if (match(parser, 1, TokenType_QUESTION)) {
-        Token const *left_operator = previous(parser);
-        Expr *middle_expr = primary(parser);
-        if (panic_mode) {
-            return NULL;
-        }
-        consume(parser, TokenType_COLON,
-                "Expect ':' after '?' in ternary conditional.");
-        if (panic_mode) {
-            return NULL;
-        }
-        Token const *right_operator = previous(parser);
-        Expr *right_expr = conditional(parser);
-        if (panic_mode) {
-            return NULL;
-        }
-        expr = (Expr *)expr_init_ternary(expr, left_operator, middle_expr,
-                                         right_operator, right_expr);
-    }
-    return expr;
-}
-
 static Expr *unary(Parser *parser) {
     if (match(parser, 2, TokenType_BANG, TokenType_MINUS)) {
         Token const *operator = previous(parser);
@@ -215,7 +194,7 @@ static Expr *unary(Parser *parser) {
         }
         return (Expr *)expr_init_unary(operator, expr);
     }
-    return conditional(parser);
+    return primary(parser);
 }
 
 static Expr *factor(Parser *parser) {
@@ -285,14 +264,42 @@ static Expr *equality(Parser *parser) {
 
 static Expr *expression(Parser *parser) { return equality(parser); }
 
-static Expr *comma(Parser *parser) {
+static Expr *conditional(Parser *parser) {
     Expr *expr = expression(parser);
+    if (panic_mode) {
+        return NULL;
+    }
+
+    if (match(parser, 1, TokenType_QUESTION)) {
+        Token const *left_operator = previous(parser);
+        Expr *middle_expr = expression(parser);
+        if (panic_mode) {
+            return NULL;
+        }
+        consume(parser, TokenType_COLON,
+                "Expect ':' after '?' in ternary conditional.");
+        if (panic_mode) {
+            return NULL;
+        }
+        Token const *right_operator = previous(parser);
+        Expr *right_expr = conditional(parser);
+        if (panic_mode) {
+            return NULL;
+        }
+        expr = (Expr *)expr_init_ternary(expr, left_operator, middle_expr,
+                                         right_operator, right_expr);
+    }
+    return expr;
+}
+
+static Expr *comma(Parser *parser) {
+    Expr *expr = conditional(parser);
     if (panic_mode) {
         return NULL;
     }
     while (match(parser, 1, TokenType_COMMA)) {
         Token const *operator = previous(parser);
-        Expr *right = expression(parser);
+        Expr *right = conditional(parser);
         if (panic_mode) {
             return NULL;
         }
