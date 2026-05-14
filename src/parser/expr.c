@@ -1,10 +1,41 @@
 #include "expr.h"
 #include "../errorhandler.h"
+#include <assert.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static char const *ternary_to_string(void const *const expr);
+static char const *binary_to_string(void const *const expr);
+static char const *unary_to_string(void const *const expr);
+static char const *literal_to_string(void const *const expr);
+static char const *grouping_to_string(void const *const expr);
+
+/**
+ * @brief Get a free-able string representation of the expression.
+ *
+ * @param expr The expression.
+ * @return The string representation.
+ */
+char const *expr_to_string(Expr const *const expr) {
+    switch (expr->type) {
+    case ExprType_UNARY:
+        return unary_to_string(expr);
+    case ExprType_BINARY:
+        return binary_to_string(expr);
+    case ExprType_TERNARY:
+        return ternary_to_string(expr);
+    case ExprType_LITERAL:
+        return literal_to_string(expr);
+    case ExprType_GROUPING:
+        return grouping_to_string(expr);
+    default:
+        assert(false);
+        return NULL;
+    }
+}
 
 static char *ast_parenthesize(char const *const name, int arg_count, ...) {
 
@@ -19,7 +50,7 @@ static char *ast_parenthesize(char const *const name, int arg_count, ...) {
     va_start(exprs, arg_count);
     for (int i = 0; i < arg_count; ++i) {
         Expr *expr = va_arg(exprs, Expr *);
-        char const *expr_str = expr->to_string(expr);
+        char const *expr_str = expr_to_string(expr);
         size_t expr_strlen = strlen(expr_str);
         size_t prev_strlen = total_str_mem_size;
         total_str_mem_size += expr_strlen;
@@ -57,7 +88,7 @@ ExprTernary *expr_init_ternary(Expr const *left, Token const *operator_left,
                                Expr const *middle, Token const *operator_right,
                                Expr const *right) {
     ExprTernary *e = calloc(1, sizeof(ExprTernary));
-    e->super.to_string = ternary_to_string;
+    e->super.type = ExprType_TERNARY;
     e->left = left;
     e->operator_left = operator_left;
     e->middle = middle;
@@ -75,7 +106,7 @@ static char const *binary_to_string(void const *const expr) {
 ExprBinary *expr_init_binary(Expr const *left, Token const *const operator,
                              Expr const *right) {
     ExprBinary *e = calloc(1, sizeof(ExprBinary));
-    e->super.to_string = binary_to_string;
+    e->super.type = ExprType_BINARY;
     e->left = left;
     e->operator = operator;
     e->right = right;
@@ -91,7 +122,7 @@ static char const *unary_to_string(void const *const expr) {
 ExprUnary *expr_init_unary(Token const *const operator,
                            Expr const *const right) {
     ExprUnary *e = calloc(1, sizeof(ExprUnary));
-    e->super.to_string = unary_to_string;
+    e->super.type = ExprType_UNARY;
     e->operator = operator;
     e->right = right;
     return e;
@@ -165,7 +196,7 @@ ExprLiteral *expr_init_literal(Token const *const token) {
         return NULL;
     }
     ExprLiteral *e = calloc(1, sizeof(ExprLiteral));
-    e->super.to_string = literal_to_string;
+    e->super.type = ExprType_LITERAL;
     e->type = token->type;
 
     switch (token->type) {
@@ -200,7 +231,7 @@ static char const *grouping_to_string(void const *const expr) {
 }
 ExprGrouping *expr_init_grouping(Expr const *const expression) {
     ExprGrouping *e = calloc(1, sizeof(ExprGrouping));
-    e->super.to_string = grouping_to_string;
+    e->super.type = ExprType_GROUPING;
     e->expression = expression;
     return e;
 }

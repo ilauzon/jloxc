@@ -2,15 +2,29 @@
 #include "../token.h"
 #include <stdbool.h>
 
+#define EXPRTYPE_ENUM_LIST(X)                                                  \
+    X(UNARY)                                                                   \
+    X(BINARY)                                                                  \
+    X(TERNARY)                                                                 \
+    X(LITERAL)                                                                 \
+    X(GROUPING)
+
+enum ExprType {
+#define GENERATE_ENUM(name) ExprType##_##name,
+    EXPRTYPE_ENUM_LIST(GENERATE_ENUM)
+#undef GENERATE_ENUM
+};
+
 typedef struct ExprBinary ExprBinary;
 typedef struct ExprUnary ExprUnary;
 typedef struct ExprLiteral ExprLiteral;
 typedef struct ExprGrouping ExprGrouping;
 
 typedef struct Expr {
-    // Get a free-able string representation of the expression.
-    char const *(*to_string)(void const *self);
+    enum ExprType type;
 } Expr;
+
+char const *expr_to_string(Expr const *const expr);
 
 typedef struct ExprTernary {
     Expr super;

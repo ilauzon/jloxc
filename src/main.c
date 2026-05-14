@@ -34,7 +34,7 @@ static void print_tokens(size_t tokens_len, Token tokens[tokens_len]) {
 
 static void print_expressions(size_t exprs_len, Expr exprs[exprs_len]) {
     for (size_t i = 0; i < exprs_len; ++i) {
-        char const *str = exprs[i].to_string(exprs + i);
+        char const *str = expr_to_string(exprs + i);
         printf("%s\n", str);
     }
 }
