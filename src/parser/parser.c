@@ -69,7 +69,7 @@ static Token const *previous(Parser *parser) {
  * @return The current token the parser is on, i.e. the first one it hasn't
  * consumed.
  */
-static Token const *peek(Parser *parser) {
+static Token const *peek(Parser const *const parser) {
     return parser->tokens + parser->current;
 }
 
@@ -79,7 +79,7 @@ static Token const *peek(Parser *parser) {
  * @return True if the token the parser currently on is `TokenType_EOF`, false
  * otherwise.
  */
-static bool is_at_end(Parser *parser) {
+static bool is_at_end(Parser const *const parser) {
     return peek(parser)->type == TokenType_EOF;
 }
 
@@ -93,20 +93,6 @@ static Token const *advance(Parser *parser) {
         parser->current++;
     }
     return previous(parser);
-}
-
-/**
- * @brief Check if the parser's current token is a particular type.
- *
- * @param type The type to compare against.
- * @return False if the current token is `TokenType_EOF` or if `type` does not
- * equal the current token's type, true otherwise.
- */
-static bool check(Parser *parser, enum TokenType type) {
-    if (is_at_end(parser)) {
-        return false;
-    }
-    return peek(parser)->type == type;
 }
 
 static void error(Token const *const token, char const *const message) {
@@ -134,6 +120,46 @@ static Token const *consume(Parser *parser, enum TokenType type,
 }
 
 /**
+ * @brief Check if the parser's current token is of a certain type.
+ *
+ * @param type the token type to check against.
+ * @return False if the current token is `TokenType_EOF` or if the current
+ * token's type does not match the given type, true otherwise.
+ */
+static bool check_single(Parser const *const parser,
+                         enum TokenType const type) {
+    if (is_at_end(parser)) {
+        return false;
+    }
+
+    return (peek(parser)->type == type);
+}
+
+/**
+ * @brief Check if the parser's current token matches one in a set of types.
+ *
+ * @param arg_count the number of types being passed in.
+ * @return False if the current token is `TokenType_EOF` or if the current
+ * token's type does not match any of the given types, true otherwise.
+ */
+static bool check(Parser const *const parser, int const arg_count, ...) {
+    if (is_at_end(parser)) {
+        return false;
+    }
+
+    va_list types;
+    va_start(types, arg_count);
+    for (int i = 0; i < arg_count; i++) {
+        enum TokenType type = va_arg(types, enum TokenType);
+        if (check_single(parser, type)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
  * @brief Check if the parser's current token matches one in a set of types, and
  * advance if this is the case.
  *
@@ -146,7 +172,7 @@ static bool match(Parser *const parser, int const arg_count, ...) {
     va_start(types, arg_count);
     for (int i = 0; i < arg_count; i++) {
         enum TokenType type = va_arg(types, enum TokenType);
-        if (check(parser, type)) {
+        if (check_single(parser, type)) {
             advance(parser);
             return true;
         }
@@ -154,21 +180,86 @@ static bool match(Parser *const parser, int const arg_count, ...) {
     return false;
 }
 
+static bool type_is_in_list(enum TokenType type, size_t size,
+                            enum TokenType list[size]) {
+    for (size_t i = 0; i < size; ++i) {
+        if (list[i] == type) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /**
- * @brief Check if the parser's current token is a candidate to become an
- * `ExprLiteral`.
+ * @brief Parse a left-to-right associativity binary expression.
  *
- * @return true if the current token can be an `ExprLiteral`, false otherwise.
+ * @param next_production the next higher precedence production.
+ * @param parser the parser being used.
+ * @param operator_count the number of interchangeable operators in this
+ * production.
+ * @return A binary expression.
  */
-static bool check_for_literal(Parser *const parser) {
-    enum TokenType type = peek(parser)->type;
-    return expr_type_is_literal(type);
+static Expr *parse_left_assoc_binary(Expr *(*next_production)(Parser *parser),
+                                     Parser *parser, int const operator_count,
+                                     ...) {
+    // parse operator token types into list
+    enum TokenType *types_to_check =
+        calloc(operator_count, sizeof(enum TokenType));
+    va_list types;
+    va_start(types, operator_count);
+    for (int i = 0; i < operator_count; ++i) {
+        enum TokenType type = va_arg(types, enum TokenType);
+        types_to_check[i] = type;
+    }
+
+    // check if the parser is on the operator right now, if so emit an error.
+    Token const *current = peek(parser);
+    if (type_is_in_list(current->type, operator_count, types_to_check)) {
+        Expr *lhs = (Expr *)expr_init_missing();
+        Token const *operator = advance(parser);
+        Expr *right = next_production(parser);
+        if (panic_mode) {
+            return NULL;
+        }
+        Expr *expr = (Expr *)expr_init_binary(lhs, operator, right);
+        return expr;
+        // error(operator, "factor operator missing left-hand operand");
+        // free(lhs);
+        // free(expr);
+        // return NULL;
+    }
+
+    Expr *expr = next_production(parser);
+    if (panic_mode) {
+        free(expr);
+        return NULL;
+    }
+
+    while (
+        type_is_in_list(peek(parser)->type, operator_count, types_to_check)) {
+        Token const *operator = advance(parser);
+        Expr *right = next_production(parser);
+        if (panic_mode) {
+            free(expr);
+            free(right);
+            return NULL;
+        }
+        expr = (Expr *)expr_init_binary(expr, operator, right);
+        if (panic_mode) {
+            free(expr);
+            free(right);
+            return NULL;
+        }
+    }
+
+    free(types_to_check);
+    return expr;
 }
 
 static Expr *expression(Parser *parser);
 
 static Expr *primary(Parser *parser) {
-    if (check_for_literal(parser)) {
+    if (expr_type_is_literal(peek(parser)->type)) {
         Token const *const current = advance(parser);
         return (Expr *)expr_init_literal(current);
     }
@@ -198,68 +289,24 @@ static Expr *unary(Parser *parser) {
 }
 
 static Expr *factor(Parser *parser) {
-    Expr *expr = unary(parser);
-    if (panic_mode) {
-        return NULL;
-    }
-    while (match(parser, 2, TokenType_SLASH, TokenType_STAR)) {
-        Token const *operator = previous(parser);
-        Expr *right = unary(parser);
-        if (panic_mode) {
-            return NULL;
-        }
-        expr = (Expr *)expr_init_binary(expr, operator, right);
-    }
-    return expr;
+    return parse_left_assoc_binary(unary, parser, 2, TokenType_SLASH,
+                                   TokenType_STAR);
 }
 
 static Expr *term(Parser *parser) {
-    Expr *expr = factor(parser);
-    if (panic_mode) {
-        return NULL;
-    }
-    while (match(parser, 2, TokenType_PLUS, TokenType_MINUS)) {
-        Token const *operator = previous(parser);
-        Expr *right = factor(parser);
-        if (panic_mode) {
-            return NULL;
-        }
-        expr = (Expr *)expr_init_binary(expr, operator, right);
-    }
-    return expr;
+    return parse_left_assoc_binary(factor, parser, 2, TokenType_PLUS,
+                                   TokenType_MINUS);
 }
 
 static Expr *comparison(Parser *parser) {
-    Expr *expr = term(parser);
-    if (panic_mode) {
-        return NULL;
-    }
-    while (match(parser, 4, TokenType_GREATER, TokenType_GREATER_EQUAL,
-                 TokenType_LESS_EQUAL, TokenType_LESS)) {
-        Token const *operator = previous(parser);
-        Expr *right = term(parser);
-        if (panic_mode) {
-            return NULL;
-        }
-        expr = (Expr *)expr_init_binary(expr, operator, right);
-    }
-    return expr;
+    return parse_left_assoc_binary(term, parser, 4, TokenType_GREATER,
+                                   TokenType_GREATER_EQUAL,
+                                   TokenType_LESS_EQUAL, TokenType_LESS);
 }
 
-static Expr *equality(Parser *parser) {
-    Expr *expr = comparison(parser);
-    if (panic_mode) {
-        return NULL;
-    }
-    while (match(parser, 2, TokenType_BANG_EQUAL, TokenType_EQUAL_EQUAL)) {
-        Token const *operator = previous(parser);
-        Expr *right = comparison(parser);
-        if (panic_mode) {
-            return NULL;
-        }
-        expr = (Expr *)expr_init_binary(expr, operator, right);
-    }
-    return expr;
+static Expr *equality(Parser *const parser) {
+    return parse_left_assoc_binary(comparison, parser, 2, TokenType_BANG_EQUAL,
+                                   TokenType_EQUAL_EQUAL);
 }
 
 static Expr *expression(Parser *parser) { return equality(parser); }
@@ -270,8 +317,8 @@ static Expr *conditional(Parser *parser) {
         return NULL;
     }
 
-    if (match(parser, 1, TokenType_QUESTION)) {
-        Token const *left_operator = previous(parser);
+    if (check(parser, 1, TokenType_QUESTION)) {
+        Token const *left_operator = advance(parser);
         Expr *middle_expr = expression(parser);
         if (panic_mode) {
             return NULL;

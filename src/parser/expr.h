@@ -54,3 +54,5 @@ typedef struct ExprGrouping {
 ExprGrouping *expr_init_grouping(Expr const *expression);
 
 bool expr_type_is_literal(enum TokenType const type);
+
+ExprLiteral *expr_init_missing(void);

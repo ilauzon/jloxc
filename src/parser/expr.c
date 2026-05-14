@@ -110,6 +110,10 @@ static char const *literal_to_string(void const *const expr) {
     char *str;
     size_t len;
     switch (e->type) {
+    case TokenType_MISSING:
+        str = calloc(1, 8);
+        memcpy(str, "missing", 8);
+        break;
     case TokenType_NIL:
         str = calloc(1, 4);
         memcpy(str, "nil", 4);
@@ -140,6 +144,7 @@ static char const *literal_to_string(void const *const expr) {
 
 bool expr_type_is_literal(enum TokenType const type) {
     switch (type) {
+    case TokenType_MISSING:
     case TokenType_NIL:
     case TokenType_TRUE:
     case TokenType_FALSE:
@@ -178,6 +183,13 @@ ExprLiteral *expr_init_literal(Token const *const token) {
     }
 
     return e;
+}
+
+ExprLiteral *expr_init_missing(void) {
+    Token *token = token_init(TokenType_MISSING, NULL, NULL, 0);
+    ExprLiteral *literal = expr_init_literal(token);
+    free(token);
+    return literal;
 }
 
 /* groupings */

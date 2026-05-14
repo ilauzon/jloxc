@@ -40,6 +40,7 @@
     X(TRUE)                                                                    \
     X(VAR)                                                                     \
     X(WHILE)                                                                   \
+    X(MISSING)                                                                 \
     X(EOF)
 
 enum TokenType {
