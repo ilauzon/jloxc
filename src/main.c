@@ -105,7 +105,7 @@ void run_example_ast_print(void) {
     Literal *literal_2 = token_literal_init(45.67);
     Token *token_1 = token_init(TokenType_NUMBER, "123", literal_1, 1);
     Token *token_2 = token_init(TokenType_NUMBER, "45.67", literal_2, 1);
-    ExprBinary *expression = expr_init_binary(
+    Expr *expression = expr_init_binary(
         (Expr *)expr_init_unary(token_init(TokenType_MINUS, "-", NULL, 1),
                                 (Expr *)expr_init_literal(token_1)),
         token_init(TokenType_STAR, "*", NULL, 1),

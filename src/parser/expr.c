@@ -7,11 +7,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-static char const *ternary_to_string(void const *const expr);
-static char const *binary_to_string(void const *const expr);
-static char const *unary_to_string(void const *const expr);
-static char const *literal_to_string(void const *const expr);
-static char const *grouping_to_string(void const *const expr);
+static char const *ternary_to_string(Expr const *const expr);
+static char const *binary_to_string(Expr const *const expr);
+static char const *unary_to_string(Expr const *const expr);
+static char const *literal_to_string(Expr const *const expr);
+static char const *grouping_to_string(Expr const *const expr);
 
 /**
  * @brief Get a free-able string representation of the expression.
@@ -73,58 +73,59 @@ static char *ast_parenthesize(char const *const name, int arg_count, ...) {
 
 /* ternary expressions */
 
-static char const *ternary_to_string(void const *const expr) {
-    ExprTernary *e = (ExprTernary *)expr;
-    size_t op1_strlen = strlen(e->operator_left->lexeme);
-    size_t op2_strlen = strlen(e->operator_right->lexeme);
+static char const *ternary_to_string(Expr const *const expr) {
+    size_t op1_strlen = strlen(expr->value.ternary.operator_left->lexeme);
+    size_t op2_strlen = strlen(expr->value.ternary.operator_right->lexeme);
     char *str = calloc(1, op1_strlen + op2_strlen + 1);
-    memcpy(str, e->operator_left->lexeme, op1_strlen);
-    memcpy(str + op1_strlen, e->operator_right->lexeme, op2_strlen);
-    return ast_parenthesize(str, 3, e->left, e->middle, e->right);
+    memcpy(str, expr->value.ternary.operator_left->lexeme, op1_strlen);
+    memcpy(str + op1_strlen, expr->value.ternary.operator_right->lexeme,
+           op2_strlen);
+    return ast_parenthesize(str, 3, expr->value.ternary.left,
+                            expr->value.ternary.middle,
+                            expr->value.ternary.right);
     free(str);
 }
 
-ExprTernary *expr_init_ternary(Expr const *left, Token const *operator_left,
-                               Expr const *middle, Token const *operator_right,
-                               Expr const *right) {
-    ExprTernary *e = calloc(1, sizeof(ExprTernary));
-    e->super.type = ExprType_TERNARY;
-    e->left = left;
-    e->operator_left = operator_left;
-    e->middle = middle;
-    e->operator_right = operator_right;
-    e->right = right;
+Expr *expr_init_ternary(Expr const *left, Token const *operator_left,
+                        Expr const *middle, Token const *operator_right,
+                        Expr const *right) {
+    Expr *e = calloc(1, sizeof(Expr));
+    e->type = ExprType_TERNARY;
+    e->value.ternary.left = left;
+    e->value.ternary.operator_left = operator_left;
+    e->value.ternary.middle = middle;
+    e->value.ternary.operator_right = operator_right;
+    e->value.ternary.right = right;
     return e;
 }
 
 /* binary expressions */
 
-static char const *binary_to_string(void const *const expr) {
-    ExprBinary *e = (ExprBinary *)expr;
-    return ast_parenthesize(e->operator->lexeme, 2, e->left, e->right);
+static char const *binary_to_string(Expr const *const expr) {
+    return ast_parenthesize(expr->value.binary.operator->lexeme, 2,
+                            expr->value.binary.left, expr->value.binary.right);
 }
-ExprBinary *expr_init_binary(Expr const *left, Token const *const operator,
-                             Expr const *right) {
-    ExprBinary *e = calloc(1, sizeof(ExprBinary));
-    e->super.type = ExprType_BINARY;
-    e->left = left;
-    e->operator = operator;
-    e->right = right;
+Expr *expr_init_binary(Expr const *left, Token const *const operator,
+                       Expr const *right) {
+    Expr *e = calloc(1, sizeof(Expr));
+    e->type = ExprType_BINARY;
+    e->value.binary.left = left;
+    e->value.binary.operator = operator;
+    e->value.binary.right = right;
     return e;
 }
 
 /* unary expressions */
 
-static char const *unary_to_string(void const *const expr) {
-    ExprUnary *e = (ExprUnary *)expr;
-    return ast_parenthesize(e->operator->lexeme, 1, e->right);
+static char const *unary_to_string(Expr const *const expr) {
+    return ast_parenthesize(expr->value.unary.operator->lexeme, 1,
+                            expr->value.unary.right);
 }
-ExprUnary *expr_init_unary(Token const *const operator,
-                           Expr const *const right) {
-    ExprUnary *e = calloc(1, sizeof(ExprUnary));
-    e->super.type = ExprType_UNARY;
-    e->operator = operator;
-    e->right = right;
+Expr *expr_init_unary(Token const *const operator, Expr const *const right) {
+    Expr *e = calloc(1, sizeof(Expr));
+    e->type = ExprType_UNARY;
+    e->value.unary.operator = operator;
+    e->value.unary.right = right;
     return e;
 }
 
@@ -136,11 +137,12 @@ ExprUnary *expr_init_unary(Token const *const operator,
  * @param expr the expression literal.
  * @return A free-able pointer to the new string.
  */
-static char const *literal_to_string(void const *const expr) {
-    ExprLiteral *e = (ExprLiteral *)expr;
+static char const *literal_to_string(Expr const *const expr) {
+    assert(expr->type == ExprType_LITERAL);
+
     char *str;
     size_t len;
-    switch (e->type) {
+    switch (expr->value.literal.type) {
     case TokenType_MISSING:
         str = calloc(1, 8);
         memcpy(str, "missing", 8);
@@ -159,13 +161,13 @@ static char const *literal_to_string(void const *const expr) {
         break;
     case TokenType_IDENTIFIER:
     case TokenType_STRING:
-        len = strlen(e->value) + 1;
+        len = strlen(expr->value.literal.value) + 1;
         str = calloc(1, len);
-        memcpy(str, e->value, len);
+        memcpy(str, expr->value.literal.value, len);
         break;
     case TokenType_NUMBER:
         str = malloc(50);
-        snprintf(str, 50, "%f", *(double *)(e->value));
+        snprintf(str, 50, "%f", *(double *)(expr->value.literal.value));
         break;
     default:
         str = calloc(1, 1); // free-able empty string in default case
@@ -188,50 +190,49 @@ bool expr_type_is_literal(enum TokenType const type) {
     }
 }
 
-ExprLiteral *expr_init_literal(Token const *const token) {
+Expr *expr_init_literal(Token const *const token) {
     if (!expr_type_is_literal(token->type)) {
         errorhandler_printerror_token(
             token, "Attempted call to instantiate literal token as ExprLiteral "
                    "with incompatible TokenType, stopping!");
         return NULL;
     }
-    ExprLiteral *e = calloc(1, sizeof(ExprLiteral));
-    e->super.type = ExprType_LITERAL;
-    e->type = token->type;
+    Expr *e = calloc(1, sizeof(Expr));
+    e->type = ExprType_LITERAL;
+    e->value.literal.type = token->type;
 
     switch (token->type) {
     case TokenType_IDENTIFIER:
-        e->value = token->lexeme;
+        e->value.literal.value = token->lexeme;
         break;
     case TokenType_STRING:
-        e->value = token->literal->value;
+        e->value.literal.value = token->literal->value;
         break;
     case TokenType_NUMBER:
-        e->value = token->literal->value;
+        e->value.literal.value = token->literal->value;
         break;
     default:
-        e->value = 0;
+        e->value.literal.value = 0;
     }
 
     return e;
 }
 
-ExprLiteral *expr_init_missing(void) {
+Expr *expr_init_missing(void) {
     Token *token = token_init(TokenType_MISSING, NULL, NULL, 0);
-    ExprLiteral *literal = expr_init_literal(token);
+    Expr *literal = expr_init_literal(token);
     free(token);
     return literal;
 }
 
 /* groupings */
 
-static char const *grouping_to_string(void const *const expr) {
-    ExprGrouping *e = (ExprGrouping *)expr;
-    return ast_parenthesize("group", 1, e->expression);
+static char const *grouping_to_string(Expr const *const expr) {
+    return ast_parenthesize("group", 1, expr->value.grouping.expression);
 }
-ExprGrouping *expr_init_grouping(Expr const *const expression) {
-    ExprGrouping *e = calloc(1, sizeof(ExprGrouping));
-    e->super.type = ExprType_GROUPING;
-    e->expression = expression;
+Expr *expr_init_grouping(Expr const *const expression) {
+    Expr *e = calloc(1, sizeof(Expr));
+    e->type = ExprType_GROUPING;
+    e->value.grouping.expression = expression;
     return e;
 }
