@@ -31,10 +31,8 @@ char const *expr_to_string(Expr const *const expr) {
         return literal_to_string(expr);
     case ExprType_GROUPING:
         return grouping_to_string(expr);
-    default:
-        assert(false);
-        return NULL;
     }
+    return NULL;
 }
 
 static char *ast_parenthesize(char const *const name, int arg_count, ...) {
@@ -74,16 +72,16 @@ static char *ast_parenthesize(char const *const name, int arg_count, ...) {
 /* ternary expressions */
 
 static char const *ternary_to_string(Expr const *const expr) {
-    size_t op1_strlen = strlen(expr->value.ternary.operator_left->lexeme);
-    size_t op2_strlen = strlen(expr->value.ternary.operator_right->lexeme);
-    char *str = calloc(1, op1_strlen + op2_strlen + 1);
-    memcpy(str, expr->value.ternary.operator_left->lexeme, op1_strlen);
-    memcpy(str + op1_strlen, expr->value.ternary.operator_right->lexeme,
-           op2_strlen);
+    assert(expr->type == ExprType_TERNARY);
+    char const *str = "";
+    switch (expr->value.ternary.type) {
+    case ExprTernaryType_CONDITIONAL:
+        str = "?:";
+        break;
+    }
     return ast_parenthesize(str, 3, expr->value.ternary.left,
                             expr->value.ternary.middle,
                             expr->value.ternary.right);
-    free(str);
 }
 
 Expr *expr_init_ternary(Expr const *left, Token const *operator_left,
@@ -91,10 +89,17 @@ Expr *expr_init_ternary(Expr const *left, Token const *operator_left,
                         Expr const *right) {
     Expr *e = calloc(1, sizeof(Expr));
     e->type = ExprType_TERNARY;
+    if (operator_left->type == TokenType_QUESTION &&
+        operator_right->type == TokenType_COLON) {
+        e->value.ternary.type = ExprTernaryType_CONDITIONAL;
+    } else {
+        errorhandler_printerror(e->line,
+                                "attempt to create ternary expression failed "
+                                "due to invalid TokenType(s)");
+        return NULL;
+    }
     e->value.ternary.left = left;
-    e->value.ternary.operator_left = operator_left;
     e->value.ternary.middle = middle;
-    e->value.ternary.operator_right = operator_right;
     e->value.ternary.right = right;
     return e;
 }
@@ -102,29 +107,121 @@ Expr *expr_init_ternary(Expr const *left, Token const *operator_left,
 /* binary expressions */
 
 static char const *binary_to_string(Expr const *const expr) {
-    return ast_parenthesize(expr->value.binary.operator->lexeme, 2,
-                            expr->value.binary.left, expr->value.binary.right);
+    assert(expr->type == ExprType_BINARY);
+    char const *str = "";
+    switch (expr->value.binary.type) {
+    case ExprBinaryType_PLUS:
+        str = "+";
+        break;
+    case ExprBinaryType_MINUS:
+        str = "-";
+        break;
+    case ExprBinaryType_SLASH:
+        str = "/";
+        break;
+    case ExprBinaryType_STAR:
+        str = "*";
+        break;
+    case ExprBinaryType_GREATER:
+        str = ">";
+        break;
+    case ExprBinaryType_GREATER_EQUAL:
+        str = ">=";
+        break;
+    case ExprBinaryType_LESS_EQUAL:
+        str = "<=";
+        break;
+    case ExprBinaryType_LESS:
+        str = "<";
+        break;
+    case ExprBinaryType_BANG_EQUAL:
+        str = "!=";
+        break;
+    case ExprBinaryType_EQUAL_EQUAL:
+        str = "==";
+        break;
+    }
+    return ast_parenthesize(str, 2, expr->value.binary.left,
+                            expr->value.binary.right);
 }
 Expr *expr_init_binary(Expr const *left, Token const *const operator,
                        Expr const *right) {
     Expr *e = calloc(1, sizeof(Expr));
     e->type = ExprType_BINARY;
     e->value.binary.left = left;
-    e->value.binary.operator = operator;
     e->value.binary.right = right;
+    switch (operator->type) {
+    case TokenType_PLUS:
+        e->value.binary.type = ExprBinaryType_PLUS;
+        break;
+    case TokenType_MINUS:
+        e->value.binary.type = ExprBinaryType_MINUS;
+        break;
+    case TokenType_SLASH:
+        e->value.binary.type = ExprBinaryType_SLASH;
+        break;
+    case TokenType_STAR:
+        e->value.binary.type = ExprBinaryType_STAR;
+        break;
+    case TokenType_GREATER:
+        e->value.binary.type = ExprBinaryType_GREATER;
+        break;
+    case TokenType_GREATER_EQUAL:
+        e->value.binary.type = ExprBinaryType_GREATER_EQUAL;
+        break;
+    case TokenType_LESS_EQUAL:
+        e->value.binary.type = ExprBinaryType_LESS_EQUAL;
+        break;
+    case TokenType_LESS:
+        e->value.binary.type = ExprBinaryType_LESS;
+        break;
+    case TokenType_BANG_EQUAL:
+        e->value.binary.type = ExprBinaryType_BANG_EQUAL;
+        break;
+    case TokenType_EQUAL_EQUAL:
+        e->value.binary.type = ExprBinaryType_EQUAL_EQUAL;
+        break;
+    default:
+        errorhandler_printerror(e->line,
+                                "attempt to create binary expression failed "
+                                "due to invalid TokenType");
+        return NULL;
+    }
     return e;
 }
 
 /* unary expressions */
 
 static char const *unary_to_string(Expr const *const expr) {
-    return ast_parenthesize(expr->value.unary.operator->lexeme, 1,
-                            expr->value.unary.right);
+    assert(expr->type == ExprType_UNARY);
+    char const *str = "";
+    switch (expr->value.unary.type) {
+    case ExprUnaryType_MINUS:
+        str = "-";
+        break;
+    case ExprUnaryType_BANG:
+        str = "!";
+        break;
+    }
+    return ast_parenthesize(str, 1, expr->value.unary.right);
 }
 Expr *expr_init_unary(Token const *const operator, Expr const *const right) {
     Expr *e = calloc(1, sizeof(Expr));
     e->type = ExprType_UNARY;
-    e->value.unary.operator = operator;
+    e->line = operator->line;
+    switch (operator->type) {
+    case TokenType_MINUS:
+        e->value.unary.type = ExprUnaryType_MINUS;
+        break;
+    case TokenType_BANG:
+        e->value.unary.type = ExprUnaryType_BANG;
+        break;
+    default:
+        errorhandler_printerror(e->line,
+                                "attempt to create unary expression failed "
+                                "due to invalid TokenType");
+        return NULL;
+    }
     e->value.unary.right = right;
     return e;
 }
@@ -139,44 +236,87 @@ Expr *expr_init_unary(Token const *const operator, Expr const *const right) {
  */
 static char const *literal_to_string(Expr const *const expr) {
     assert(expr->type == ExprType_LITERAL);
-
     char *str;
     size_t len;
     switch (expr->value.literal.type) {
-    case TokenType_MISSING:
+    case ExprLiteralType_MISSING:
         str = calloc(1, 8);
         memcpy(str, "missing", 8);
         break;
-    case TokenType_NIL:
+    case ExprLiteralType_NIL:
         str = calloc(1, 4);
         memcpy(str, "nil", 4);
         break;
-    case TokenType_TRUE:
+    case ExprLiteralType_TRUE:
         str = calloc(1, 5);
         memcpy(str, "true", 5);
         break;
-    case TokenType_FALSE:
-        str = calloc(1, 5);
-        memcpy(str, "false", 5);
+    case ExprLiteralType_FALSE:
+        str = calloc(1, 6);
+        memcpy(str, "false", 6);
         break;
-    case TokenType_IDENTIFIER:
-    case TokenType_STRING:
+    case ExprLiteralType_IDENTIFIER:
+    case ExprLiteralType_STRING:
         len = strlen(expr->value.literal.value) + 1;
         str = calloc(1, len);
         memcpy(str, expr->value.literal.value, len);
         break;
-    case TokenType_NUMBER:
+    case ExprLiteralType_NUMBER:
         str = malloc(50);
         snprintf(str, 50, "%f", *(double *)(expr->value.literal.value));
         break;
-    default:
-        str = calloc(1, 1); // free-able empty string in default case
     }
     return str;
 }
 
-bool expr_type_is_literal(enum TokenType const type) {
-    switch (type) {
+Expr *expr_init_literal(Token const *const token) {
+    Expr *e = calloc(1, sizeof(Expr));
+    e->type = ExprType_LITERAL;
+    e->line = token->line;
+
+    switch (token->type) {
+    case TokenType_MISSING:
+        e->value.literal.type = ExprLiteralType_MISSING;
+        break;
+    case TokenType_NIL:
+        e->value.literal.type = ExprLiteralType_NIL;
+        break;
+    case TokenType_TRUE:
+        e->value.literal.type = ExprLiteralType_TRUE;
+        break;
+    case TokenType_FALSE:
+        e->value.literal.type = ExprLiteralType_FALSE;
+        break;
+    case TokenType_IDENTIFIER:
+        e->value.literal.type = ExprLiteralType_IDENTIFIER;
+        e->value.literal.value = token->lexeme;
+        break;
+    case TokenType_STRING:
+        e->value.literal.type = ExprLiteralType_STRING;
+        e->value.literal.value = token->literal->value;
+        break;
+    case TokenType_NUMBER:
+        e->value.literal.type = ExprLiteralType_NUMBER;
+        e->value.literal.value = token->literal->value;
+        break;
+    default:
+        errorhandler_printerror(e->line,
+                                "attempt to create literal expression failed "
+                                "due to invalid TokenType");
+        return NULL;
+    }
+    return e;
+}
+
+Expr *expr_init_missing(void) {
+    Token *token = token_init(TokenType_MISSING, NULL, NULL, 0);
+    Expr *literal = expr_init_literal(token);
+    free(token);
+    return literal;
+}
+
+bool expr_token_is_literal(Token const *const token) {
+    switch (token->type) {
     case TokenType_MISSING:
     case TokenType_NIL:
     case TokenType_TRUE:
@@ -190,44 +330,10 @@ bool expr_type_is_literal(enum TokenType const type) {
     }
 }
 
-Expr *expr_init_literal(Token const *const token) {
-    if (!expr_type_is_literal(token->type)) {
-        errorhandler_printerror_token(
-            token, "Attempted call to instantiate literal token as ExprLiteral "
-                   "with incompatible TokenType, stopping!");
-        return NULL;
-    }
-    Expr *e = calloc(1, sizeof(Expr));
-    e->type = ExprType_LITERAL;
-    e->value.literal.type = token->type;
-
-    switch (token->type) {
-    case TokenType_IDENTIFIER:
-        e->value.literal.value = token->lexeme;
-        break;
-    case TokenType_STRING:
-        e->value.literal.value = token->literal->value;
-        break;
-    case TokenType_NUMBER:
-        e->value.literal.value = token->literal->value;
-        break;
-    default:
-        e->value.literal.value = 0;
-    }
-
-    return e;
-}
-
-Expr *expr_init_missing(void) {
-    Token *token = token_init(TokenType_MISSING, NULL, NULL, 0);
-    Expr *literal = expr_init_literal(token);
-    free(token);
-    return literal;
-}
-
 /* groupings */
 
 static char const *grouping_to_string(Expr const *const expr) {
+    assert(expr->type == ExprType_GROUPING);
     return ast_parenthesize("group", 1, expr->value.grouping.expression);
 }
 Expr *expr_init_grouping(Expr const *const expression) {

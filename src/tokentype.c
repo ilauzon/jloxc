@@ -131,10 +131,9 @@ char const *tokentype_to_string(enum TokenType t) {
     case TokenType##_##name:                                                   \
         return "TokenType_" #name;
         TOKENTYPE_ENUM_LIST(GENERATE_SWITCH_CASE)
-    default:
-        return "UNKNOWN";
 #undef GENERATE_SWITCH_CASE
     }
+    return NULL;
 }
 
 enum TokenType tokentype_from_string(char const *const string) {

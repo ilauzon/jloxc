@@ -259,9 +259,9 @@ static Expr *parse_left_assoc_binary(Expr *(*next_production)(Parser *parser),
 static Expr *expression(Parser *parser);
 
 static Expr *primary(Parser *parser) {
-    if (expr_type_is_literal(peek(parser)->type)) {
+    if (expr_token_is_literal(peek(parser))) {
         Token const *const current = advance(parser);
-        return (Expr *)expr_init_literal(current);
+        return expr_init_literal(current);
     }
 
     if (match(parser, 1, TokenType_LEFT_PAREN)) {
@@ -304,7 +304,7 @@ static Expr *comparison(Parser *parser) {
                                    TokenType_LESS_EQUAL, TokenType_LESS);
 }
 
-static Expr *equality(Parser *const parser) {
+static Expr *equality(Parser *parser) {
     return parse_left_assoc_binary(comparison, parser, 2, TokenType_BANG_EQUAL,
                                    TokenType_EQUAL_EQUAL);
 }
