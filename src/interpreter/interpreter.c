@@ -1,5 +1,5 @@
 #include "interpreter.h"
-#include "../errorhandler.h"
+#include "../errors/errorhandler.h"
 #include "../parser/expr.h"
 #include <stdint.h>
 #include <stdlib.h>

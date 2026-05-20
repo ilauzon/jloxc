@@ -1,9 +1,9 @@
-#include "./parser/parser.h"
-#include "errorhandler.h"
+#include "errors/errorhandler.h"
 #include "interpreter/interpreter.h"
-#include "scanner.h"
-#include "token.h"
-#include "tokentype.h"
+#include "parser/parser.h"
+#include "scanner/scanner.h"
+#include "scanner/token.h"
+#include "scanner/tokentype.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,5 +1,5 @@
 #include "scanner.h"
-#include "errorhandler.h"
+#include "../errors/errorhandler.h"
 #include "token.h"
 #include "tokentype.h"
 #include <assert.h>

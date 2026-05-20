@@ -1,6 +1,6 @@
 #include "errorhandler.h"
-#include "token.h"
-#include "tokentype.h"
+#include "../scanner/token.h"
+#include "../scanner/tokentype.h"
 #include <stdio.h>
 
 static bool had_error = false;

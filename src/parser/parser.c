@@ -26,9 +26,9 @@
  */
 
 #include "parser.h"
-#include "../errorhandler.h"
-#include "../token.h"
-#include "../tokentype.h"
+#include "../errors/errorhandler.h"
+#include "../scanner/token.h"
+#include "../scanner/tokentype.h"
 #include "expr.h"
 #include <stdarg.h>
 #include <stdbool.h>

@@ -1,5 +1,5 @@
 #pragma once
-#include "../token.h"
+#include "../scanner/token.h"
 #include <stdbool.h>
 
 enum ExprType {

@@ -1,5 +1,5 @@
 #include "expr.h"
-#include "../errorhandler.h"
+#include "../errors/errorhandler.h"
 #include <assert.h>
 #include <stdarg.h>
 #include <stdbool.h>

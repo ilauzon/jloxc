@@ -1,4 +1,4 @@
-#include "token.h"
+#include "../scanner/token.h"
 #include <stdbool.h>
 
 bool errorhandler_haderror(void);
