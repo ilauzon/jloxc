@@ -120,9 +120,9 @@ static void scan_string(Scanner *const scanner) {
 
     // copy the string, trimming the surrounding quotes.
     assert(scanner->current > scanner->start);
-    size_t string_length = scanner->current - scanner->start;
+    size_t string_length = scanner->current - scanner->start - 1;
     char *const string = malloc(string_length);
-    memcpy(string, scanner->source + scanner->start + 1, string_length - 2);
+    memcpy(string, scanner->source + scanner->start + 1, string_length);
     string[string_length - 1] = '\0';
 
     Literal *const literal = token_literal_init(string);

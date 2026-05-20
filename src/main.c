@@ -1,5 +1,6 @@
 #include "./parser/parser.h"
 #include "errorhandler.h"
+#include "interpreter/interpreter.h"
 #include "scanner.h"
 #include "token.h"
 #include "tokentype.h"
@@ -39,6 +40,31 @@ static void print_expressions(size_t exprs_len, Expr exprs[exprs_len]) {
     }
 }
 
+static void print_result(Result const *const result) {
+    switch (result->type) {
+    case ResultType_NULL:
+        printf("<nil>");
+        break;
+    case ResultType_STRING:
+        printf("%s", result->value.string);
+        break;
+    case ResultType_NUMBER:
+        printf("%f", result->value.number);
+        break;
+    case ResultType_BOOLEAN:
+        if (result->value.boolean) {
+            printf("<true>");
+        } else {
+            printf("<false>");
+        }
+        break;
+    case ResultType_IDENTIFIER:
+        printf("<identifier>");
+        break;
+    }
+    printf("\n");
+}
+
 void run(char const line[static 1]) {
     size_t token_list_size = 0;
     Token *tokens = scanner_scan_tokens(line, &token_list_size);
@@ -57,6 +83,14 @@ void run(char const line[static 1]) {
     }
 
     print_expressions(exprs_len, expr);
+
+    Result const *result = interpreter_interpret(expr);
+
+    if (errorhandler_haderror()) {
+        return;
+    }
+
+    print_result(result);
 }
 
 int run_file(char const path[static 1]) {
