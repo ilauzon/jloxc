@@ -127,9 +127,7 @@ int run_prompt(void) {
             break;
         }
         run(line);
-        if (errorhandler_haderror()) {
-            return EXIT_FAILURE;
-        }
+        errorhandler_reseterrors();
     }
     return EXIT_SUCCESS;
 }

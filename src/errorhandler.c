@@ -13,6 +13,8 @@ static void report(int line, char const where[static 1],
 
 bool errorhandler_haderror(void) { return had_error; }
 
+void errorhandler_reseterrors(void) { had_error = false; }
+
 void errorhandler_printerror(int line, char const message[static 1]) {
     report(line, "", message);
 }

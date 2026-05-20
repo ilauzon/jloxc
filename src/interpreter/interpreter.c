@@ -1,14 +1,22 @@
 #include "interpreter.h"
+#include "../errorhandler.h"
 #include "../parser/expr.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-Result const *evaluate(Expr const *const expr) {
+static bool had_error = false;
+
+static void error(Expr const *const e, char const *const message) {
+    errorhandler_printerror(e->line, message);
+    had_error = true;
+}
+
+static Result const *evaluate(Expr const *const expr) {
     return interpreter_interpret(expr);
 }
 
-bool is_truthy(Result const *const result) {
+static bool is_truthy(Result const *const result) {
     if (result->type == ResultType_NULL) {
         return false;
     }
@@ -20,7 +28,7 @@ bool is_truthy(Result const *const result) {
     return true;
 }
 
-Result *equals(Result const *const first, Result const *const second) {
+static Result *equals(Result const *const first, Result const *const second) {
     Result *result = calloc(1, sizeof(Result));
     result->type = ResultType_BOOLEAN;
     if (first->type == ResultType_NUMBER && second->type == ResultType_NUMBER) {
@@ -33,22 +41,20 @@ Result *equals(Result const *const first, Result const *const second) {
                second->type == ResultType_BOOLEAN) {
         result->value.boolean = first->value.boolean == second->value.boolean;
     } else {
-        // TODO emit error
-        free(result);
-        return NULL;
+        result->value.boolean = false;
     }
     return result;
 }
 
-Result const *interpret_literal(Expr const *const expr) {
+static Result const *interpret_literal(Expr const *const expr) {
     ExprLiteral const literal = expr->value.literal;
     Result *result = calloc(1, sizeof(Result));
 
     switch (literal.type) {
     case ExprLiteralType_MISSING:
-        // TODO emit error
-        result->type = ResultType_NULL;
-        break;
+        error(expr, "Missing value.");
+        free(result);
+        return NULL;
     case ExprLiteralType_NIL:
         result->type = ResultType_NULL;
         break;
@@ -75,19 +81,24 @@ Result const *interpret_literal(Expr const *const expr) {
     return result;
 }
 
-Result const *interpret_grouping(Expr const *const expr) {
+static Result const *interpret_grouping(Expr const *const expr) {
     return evaluate(expr->value.grouping.expression);
 }
 
-Result const *interpret_unary(Expr const *const expr) {
+static Result const *interpret_unary(Expr const *const expr) {
     ExprUnary const unary = expr->value.unary;
     Result const *right_result = evaluate(unary.right);
+    if (had_error) {
+        return NULL;
+    }
     Result *result = calloc(1, sizeof(Result));
 
     switch (unary.type) {
     case ExprUnaryType_MINUS:
         if (right_result->type != ResultType_NUMBER) {
-            // TODO emit error
+            error(expr, "Operand must be a number.");
+            free(result);
+            return NULL;
         }
         result->type = ResultType_NUMBER;
         result->value.number = -1 * right_result->value.number;
@@ -101,7 +112,7 @@ Result const *interpret_unary(Expr const *const expr) {
     return result;
 }
 
-Result const *interpret_binary(Expr const *const expr) {
+static Result const *interpret_binary(Expr const *const expr) {
     Result const *l = evaluate(expr->value.binary.left);
     Result const *r = evaluate(expr->value.binary.right);
     Result *result = calloc(1, sizeof(Result));
@@ -109,7 +120,9 @@ Result const *interpret_binary(Expr const *const expr) {
     switch (expr->value.binary.type) {
     case ExprBinaryType_MINUS:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
-            // TODO emit error
+            error(expr, "Both operands must be numbers.");
+            free(result);
+            return NULL;
         }
         result->type = ResultType_NUMBER;
         result->value.number = l->value.number - r->value.number;
@@ -128,47 +141,62 @@ Result const *interpret_binary(Expr const *const expr) {
             strcat(str + strlen(l->value.string), r->value.string);
             result->value.string = str;
         } else {
-            // TODO emit error
+            error(expr, "Both operands must be numbers or both operands must "
+                        "be strings.");
+            free(result);
+            return NULL;
         }
         break;
     case ExprBinaryType_SLASH:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
-            // TODO emit error
+            error(expr, "Both operands must be numbers.");
+            free(result);
+            return NULL;
         }
         result->type = ResultType_NUMBER;
         result->value.number = l->value.number / r->value.number;
         break;
     case ExprBinaryType_STAR:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
-            // TODO emit error
+            error(expr, "Both operands must be numbers.");
+            free(result);
+            return NULL;
         }
         result->type = ResultType_NUMBER;
         result->value.number = l->value.number * r->value.number;
         break;
     case ExprBinaryType_GREATER:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
-            // TODO emit error
+            error(expr, "Both operands must be numbers.");
+            free(result);
+            return NULL;
         }
         result->type = ResultType_BOOLEAN;
         result->value.boolean = l->value.number > r->value.number;
         break;
     case ExprBinaryType_GREATER_EQUAL:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
-            // TODO emit error
+            error(expr, "Both operands must be numbers.");
+            free(result);
+            return NULL;
         }
         result->type = ResultType_BOOLEAN;
         result->value.boolean = l->value.number >= r->value.number;
         break;
     case ExprBinaryType_LESS_EQUAL:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
-            // TODO emit error
+            error(expr, "Both operands must be numbers.");
+            free(result);
+            return NULL;
         }
         result->type = ResultType_BOOLEAN;
         result->value.boolean = l->value.number <= r->value.number;
         break;
     case ExprBinaryType_LESS:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
-            // TODO emit error
+            error(expr, "Both operands must be numbers.");
+            free(result);
+            return NULL;
         }
         result->type = ResultType_BOOLEAN;
         result->value.boolean = l->value.number < r->value.number;
@@ -176,16 +204,28 @@ Result const *interpret_binary(Expr const *const expr) {
     case ExprBinaryType_BANG_EQUAL:
         free(result);
         result = equals(l, r);
-        // TODO emit error if equals was problematic
         result->value.boolean = !result->value.boolean;
         break;
     case ExprBinaryType_EQUAL_EQUAL:
         free(result);
         result = equals(l, r);
-        // TODO emit error if equals was problematic
         break;
     }
     return result;
+}
+
+static Result const *interpret_ternary(Expr const *const expr) {
+    Result const *l = evaluate(expr->value.ternary.left);
+    switch (expr->value.ternary.type) {
+    case ExprTernaryType_CONDITIONAL:
+        if (is_truthy(l)) {
+            return evaluate(expr->value.ternary.middle);
+        } else {
+            return evaluate(expr->value.ternary.right);
+        }
+        break;
+    }
+    return NULL;
 }
 
 Result const *interpreter_interpret(Expr const *const expr) {
@@ -195,6 +235,7 @@ Result const *interpreter_interpret(Expr const *const expr) {
     case ExprType_BINARY:
         return interpret_binary(expr);
     case ExprType_TERNARY:
+        return interpret_ternary(expr);
     case ExprType_LITERAL:
         return interpret_literal(expr);
     case ExprType_GROUPING:
