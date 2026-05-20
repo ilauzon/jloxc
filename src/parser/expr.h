@@ -26,6 +26,7 @@ Expr *expr_init_ternary(Expr const *left, Token const *operator_left,
 
 typedef struct ExprBinary {
     enum ExprBinaryType {
+        ExprBinaryType_COMMA,
         ExprBinaryType_PLUS,
         ExprBinaryType_MINUS,
         ExprBinaryType_SLASH,

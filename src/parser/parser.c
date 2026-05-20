@@ -3,10 +3,10 @@
  *
  * Expression grammar:
  *
+ * expression         -> comma ;
  * comma              -> conditional ( "," conditional )* ;
  * conditional        -> expression ? expression : conditional
  *                       | expression ;
- * expression         -> equality ;
  * equality           -> comparison ( equality_rhs )*
  *                       | equality_rhs ;
  * equality_rhs       -> ( "!=" | "==" ) comparison ;
@@ -309,17 +309,15 @@ static Expr *equality(Parser *parser) {
                                    TokenType_EQUAL_EQUAL);
 }
 
-static Expr *expression(Parser *parser) { return equality(parser); }
-
 static Expr *conditional(Parser *parser) {
-    Expr *expr = expression(parser);
+    Expr *expr = equality(parser);
     if (panic_mode) {
         return NULL;
     }
 
     if (check(parser, 1, TokenType_QUESTION)) {
         Token const *left_operator = advance(parser);
-        Expr *middle_expr = expression(parser);
+        Expr *middle_expr = equality(parser);
         if (panic_mode) {
             return NULL;
         }
@@ -354,6 +352,8 @@ static Expr *comma(Parser *parser) {
     }
     return expr;
 }
+
+static Expr *expression(Parser *parser) { return comma(parser); }
 
 static void synchronize(Parser *parser) {
     panic_mode = false;

@@ -118,6 +118,8 @@ static Result const *interpret_binary(Expr const *const expr) {
     Result *result = calloc(1, sizeof(Result));
 
     switch (expr->value.binary.type) {
+    case ExprBinaryType_COMMA:
+        return r;
     case ExprBinaryType_MINUS:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
             error(expr, "Both operands must be numbers.");

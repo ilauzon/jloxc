@@ -110,6 +110,9 @@ static char const *binary_to_string(Expr const *const expr) {
     assert(expr->type == ExprType_BINARY);
     char const *str = "";
     switch (expr->value.binary.type) {
+    case ExprBinaryType_COMMA:
+        str = ",";
+        break;
     case ExprBinaryType_PLUS:
         str = "+";
         break;
@@ -151,6 +154,9 @@ Expr *expr_init_binary(Expr const *left, Token const *const operator,
     e->value.binary.left = left;
     e->value.binary.right = right;
     switch (operator->type) {
+    case TokenType_COMMA:
+        e->value.binary.type = ExprBinaryType_COMMA;
+        break;
     case TokenType_PLUS:
         e->value.binary.type = ExprBinaryType_PLUS;
         break;
