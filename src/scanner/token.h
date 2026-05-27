@@ -1,5 +1,6 @@
 #pragma once
 #include "tokentype.h"
+#include <stddef.h>
 
 /**
  * A literal value, used in struct `Token`.

@@ -1,4 +1,4 @@
 #include "expr.h"
 #include <stdlib.h>
-Expr *parser_parse(Token const *const tokens, size_t const tokens_len,
-                   size_t *exprs_len);
+Stmt *parser_parse(Token const *const tokens, size_t const tokens_len,
+                   size_t *return_length);

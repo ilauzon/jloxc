@@ -309,8 +309,10 @@ Expr *expr_init_literal(Token const *const token) {
         errorhandler_printerror(e->line,
                                 "attempt to create literal expression failed "
                                 "due to invalid TokenType");
+        free(e);
         return NULL;
     }
+
     return e;
 }
 
@@ -347,4 +349,13 @@ Expr *expr_init_grouping(Expr const *const expression) {
     e->type = ExprType_GROUPING;
     e->value.grouping.expression = expression;
     return e;
+}
+
+/* statements */
+
+Stmt *stmt_init(enum StmtType type, Expr *expression) {
+    Stmt *stmt = calloc(1, sizeof(Stmt));
+    stmt->type = type;
+    stmt->expression = *expression;
+    return stmt;
 }

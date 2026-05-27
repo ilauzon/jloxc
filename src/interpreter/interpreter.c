@@ -2,18 +2,42 @@
 #include "../errors/errorhandler.h"
 #include "../parser/expr.h"
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 static bool had_error = false;
 
+static Result const *evaluate(Expr const *const expr);
+
+static void print_result(Result const *const result) {
+    switch (result->type) {
+    case ResultType_NULL:
+        printf("<nil>");
+        break;
+    case ResultType_STRING:
+        printf("%s", result->value.string);
+        break;
+    case ResultType_NUMBER:
+        printf("%f", result->value.number);
+        break;
+    case ResultType_BOOLEAN:
+        if (result->value.boolean) {
+            printf("<true>");
+        } else {
+            printf("<false>");
+        }
+        break;
+    case ResultType_IDENTIFIER:
+        printf("<identifier>");
+        break;
+    }
+    printf("\n");
+}
+
 static void error(Expr const *const e, char const *const message) {
     errorhandler_printerror(e->line, message);
     had_error = true;
-}
-
-static Result const *evaluate(Expr const *const expr) {
-    return interpreter_interpret(expr);
 }
 
 static bool is_truthy(Result const *const result) {
@@ -230,7 +254,7 @@ static Result const *interpret_ternary(Expr const *const expr) {
     return NULL;
 }
 
-Result const *interpreter_interpret(Expr const *const expr) {
+static Result const *evaluate(Expr const *const expr) {
     switch (expr->type) {
     case ExprType_UNARY:
         return interpret_unary(expr);
@@ -244,4 +268,41 @@ Result const *interpreter_interpret(Expr const *const expr) {
         return interpret_grouping(expr);
     }
     return NULL;
+}
+
+static void interpret_stmt_expr(Interpreter *interpreter,
+                                Stmt const *const stmt) {
+    evaluate(&stmt->expression);
+}
+
+static void interpret_stmt_print(Interpreter *interpreter,
+                                 Stmt const *const stmt) {
+    Result const *const value = evaluate(&stmt->expression);
+    if (errorhandler_haderror()) {
+        free((Result *)value);
+        return;
+    }
+    print_result(value);
+}
+
+Interpreter *interpreter_init(void) {
+    Interpreter *interpreter = calloc(1, sizeof(Interpreter));
+    return interpreter;
+}
+void interpreter_interpret(Interpreter *interpreter, size_t const stmt_count,
+                           Stmt const stmts[stmt_count]) {
+    for (size_t i = 0; i < stmt_count; ++i) {
+        Stmt const *stmt = stmts + i;
+        switch (stmt->type) {
+        case StmtType_EXPR:
+            interpret_stmt_expr(interpreter, stmt);
+            break;
+        case StmtType_PRINT:
+            interpret_stmt_print(interpreter, stmt);
+            break;
+        }
+        if (had_error) {
+            break;
+        }
+    }
 }

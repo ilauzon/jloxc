@@ -1,6 +1,7 @@
 #pragma once
 #include "../scanner/token.h"
 #include <stdbool.h>
+#include <stddef.h>
 
 enum ExprType {
     ExprType_UNARY,
@@ -89,3 +90,13 @@ typedef struct Expr {
 } Expr;
 
 char const *expr_to_string(Expr const *const expr);
+
+typedef struct {
+    enum StmtType {
+        StmtType_EXPR,
+        StmtType_PRINT,
+    } type;
+    Expr expression;
+} Stmt;
+
+Stmt *stmt_init(enum StmtType type, Expr *expression);

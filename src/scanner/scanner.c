@@ -336,8 +336,10 @@ Token *scanner_scan_tokens(char const *const source,
     scanner->tokens =
         realloc(scanner->tokens, scanner->tokens_len * sizeof(Token));
 
+    char *eof_str = calloc(1, 6);
+    strncpy(eof_str, "<EOF>", 6);
     Token eof = {
-        .lexeme = "<EOF>",
+        .lexeme = eof_str,
         .line = scanner->line,
         .literal = NULL,
         .type = TokenType_EOF,

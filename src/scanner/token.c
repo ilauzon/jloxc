@@ -35,7 +35,11 @@ Token *token_init(enum TokenType const type, char const *const lexeme,
 /* String literals */
 
 char const *token_literal_string_to_string(Literal const *const it) {
-    return it->value;
+    size_t len = strlen(it->value);
+    char *str = calloc(1, len + 1);
+    strncpy(str, it->value, len);
+    str[len] = '\0';
+    return str;
 }
 
 Literal *token_literal_init_string(char const *const value) {

@@ -1,5 +1,6 @@
 #pragma once
 #include "../parser/expr.h"
+#include <stddef.h>
 
 enum ResultType {
     ResultType_NULL,
@@ -20,4 +21,10 @@ typedef struct {
     } value;
 } Result;
 
-Result const *interpreter_interpret(Expr const *const expr);
+typedef struct {
+    void *state;
+} Interpreter;
+
+Interpreter *interpreter_init(void);
+void interpreter_interpret(Interpreter *interpreter, size_t const stmt_count,
+                           Stmt const stmts[stmt_count]);

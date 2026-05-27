@@ -1,4 +1,10 @@
-COMPILE_FLAGS = -std=c17 -Wpedantic -Wall -Wextra -g
+COMPILE_FLAGS = \
+	-std=c17 \
+	-Wpedantic \
+	-Wall \
+	-Wextra \
+	-g \
+	-fsanitize=address
 SRC_DIR = src
 BUILD_DIR = build
 OBJ_DIR = $(BUILD_DIR)/obj

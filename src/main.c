@@ -30,39 +30,11 @@ static void print_tokens(size_t tokens_len, Token tokens[tokens_len]) {
                "\n\tlex:\t%s\n\tlit: \t%s\n\tline: \t%d\n",
                i, tokentype_to_string(type), token->lexeme, literal_value,
                token->line);
-    }
-}
 
-static void print_expressions(size_t exprs_len, Expr exprs[exprs_len]) {
-    for (size_t i = 0; i < exprs_len; ++i) {
-        char const *str = expr_to_string(exprs + i);
-        printf("%s\n", str);
-    }
-}
-
-static void print_result(Result const *const result) {
-    switch (result->type) {
-    case ResultType_NULL:
-        printf("<nil>");
-        break;
-    case ResultType_STRING:
-        printf("%s", result->value.string);
-        break;
-    case ResultType_NUMBER:
-        printf("%f", result->value.number);
-        break;
-    case ResultType_BOOLEAN:
-        if (result->value.boolean) {
-            printf("<true>");
-        } else {
-            printf("<false>");
+        if (literal) {
+            free((char *)literal_value);
         }
-        break;
-    case ResultType_IDENTIFIER:
-        printf("<identifier>");
-        break;
     }
-    printf("\n");
 }
 
 void run(char const line[static 1]) {
@@ -75,22 +47,24 @@ void run(char const line[static 1]) {
 
     print_tokens(token_list_size, tokens);
 
-    size_t exprs_len = 0;
-    Expr *expr = parser_parse(tokens, token_list_size, &exprs_len);
+    size_t stmts_len = 0;
+    Stmt *stmts = parser_parse(tokens, token_list_size, &stmts_len);
+    for (size_t i = 0; i < token_list_size; ++i) {
+        Token *t = tokens + i;
+        free((char *)t->lexeme);
+        if (t->literal != NULL) {
+            free((void *)t->literal);
+        }
+    }
+    free(tokens);
 
     if (errorhandler_haderror()) {
         return;
     }
 
-    print_expressions(exprs_len, expr);
-
-    Result const *result = interpreter_interpret(expr);
-
-    if (errorhandler_haderror()) {
-        return;
-    }
-
-    print_result(result);
+    Interpreter *interpreter = interpreter_init();
+    interpreter_interpret(interpreter, stmts_len, stmts);
+    free(stmts);
 }
 
 int run_file(char const path[static 1]) {
@@ -107,6 +81,7 @@ int run_file(char const path[static 1]) {
     fseek(file, 0, SEEK_SET);
     char *const contents = malloc(file_size + 1);
     fread(contents, file_size, 1, file);
+    contents[file_size] = '\0';
     fclose(file);
 
     run(contents);
@@ -132,21 +107,7 @@ int run_prompt(void) {
     return EXIT_SUCCESS;
 }
 
-void run_example_ast_print(void) {
-    Literal *literal_1 = token_literal_init(123);
-    Literal *literal_2 = token_literal_init(45.67);
-    Token *token_1 = token_init(TokenType_NUMBER, "123", literal_1, 1);
-    Token *token_2 = token_init(TokenType_NUMBER, "45.67", literal_2, 1);
-    Expr *expression = expr_init_binary(
-        (Expr *)expr_init_unary(token_init(TokenType_MINUS, "-", NULL, 1),
-                                (Expr *)expr_init_literal(token_1)),
-        token_init(TokenType_STAR, "*", NULL, 1),
-        (Expr *)expr_init_grouping((Expr *)expr_init_literal(token_2)));
-    print_expressions(1, (Expr *)expression);
-}
-
 int main(int argc, char *argv[argc + 1]) {
-    run_example_ast_print();
     if (argc > 2) {
         printf("Usage: jlox [script]\n");
         return EXIT_FAILURE;
