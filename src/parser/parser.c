@@ -447,6 +447,7 @@ Stmt *parser_parse(Token const *const tokens, size_t const tokens_len,
         Stmt *stmt = statement(parser);
 
         if (panic_mode) {
+            panic_mode = false;
             *return_length_ptr = 0;
             free(statements);
             free(stmt);
