@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+static char const *var_to_string(Expr const *const expr);
 static char const *ternary_to_string(Expr const *const expr);
 static char const *binary_to_string(Expr const *const expr);
 static char const *unary_to_string(Expr const *const expr);
@@ -21,6 +22,8 @@ static char const *grouping_to_string(Expr const *const expr);
  */
 char const *expr_to_string(Expr const *const expr) {
     switch (expr->type) {
+    case ExprType_VAR:
+        return var_to_string(expr);
     case ExprType_UNARY:
         return unary_to_string(expr);
     case ExprType_BINARY:
@@ -232,6 +235,24 @@ Expr *expr_init_unary(Token const *const operator, Expr const *const right) {
     return e;
 }
 
+/* variable expressions */
+
+static char const *var_to_string(Expr const *const expr) {
+    assert(expr->type == ExprType_VAR);
+    size_t len = strlen(expr->value.var.name) + 1;
+    char *str = calloc(len, sizeof(char));
+    memcpy(str, expr->value.var.name, len);
+    return str;
+}
+
+Expr *expr_init_var(Token const *const name) {
+    Expr *e = calloc(1, sizeof(Expr));
+    e->type = ExprType_VAR;
+    e->line = name->line;
+    e->value.var.name = name->lexeme;
+    return e;
+}
+
 /* literals */
 
 /**
@@ -353,9 +374,23 @@ Expr *expr_init_grouping(Expr const *const expression) {
 
 /* statements */
 
-Stmt *stmt_init(enum StmtType type, Expr *expression) {
+Stmt *stmt_expr_init(Expr *expression) {
     Stmt *stmt = calloc(1, sizeof(Stmt));
-    stmt->type = type;
-    stmt->expression = *expression;
+    stmt->type = StmtType_EXPR;
+    stmt->value.expr.expression = *expression;
+    return stmt;
+}
+
+Stmt *stmt_print_init(Expr *expression) {
+    Stmt *stmt = calloc(1, sizeof(Stmt));
+    stmt->type = StmtType_PRINT;
+    stmt->value.print.expression = *expression;
+    return stmt;
+}
+Stmt *stmt_var_init(char const *name, Expr *expression) {
+    Stmt *stmt = calloc(1, sizeof(Stmt));
+    stmt->type = StmtType_VAR;
+    stmt->value.var.name = name;
+    stmt->value.var.initializer = *expression;
     return stmt;
 }

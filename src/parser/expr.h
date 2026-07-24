@@ -4,14 +4,20 @@
 #include <stddef.h>
 
 enum ExprType {
+    ExprType_VAR,
     ExprType_UNARY,
     ExprType_BINARY,
     ExprType_TERNARY,
     ExprType_LITERAL,
-    ExprType_GROUPING
+    ExprType_GROUPING,
 };
 
 typedef struct Expr Expr;
+
+typedef struct ExprVar {
+    char const *name;
+} ExprVar;
+Expr *expr_init_var(Token const *const name);
 
 typedef struct ExprTernary {
     enum ExprTernaryType {
@@ -67,20 +73,19 @@ typedef struct ExprLiteral {
     void const *value;
 } ExprLiteral;
 Expr *expr_init_literal(Token const *const token);
-
 bool expr_token_is_literal(Token const *const token);
+Expr *expr_init_missing(void);
 
 typedef struct ExprGrouping {
     Expr const *expression;
 } ExprGrouping;
 Expr *expr_init_grouping(Expr const *expression);
 
-Expr *expr_init_missing(void);
-
 typedef struct Expr {
     enum ExprType type;
     int line;
     union {
+        ExprVar var;
         ExprTernary ternary;
         ExprBinary binary;
         ExprUnary unary;
@@ -95,8 +100,23 @@ typedef struct {
     enum StmtType {
         StmtType_EXPR,
         StmtType_PRINT,
+        StmtType_VAR,
     } type;
-    Expr expression;
+    union {
+        struct {
+            Expr expression;
+        } expr;
+        struct {
+            Expr expression;
+        } print;
+        struct {
+            char const *name;
+            /** The statement initializing the variable. Can be null. */
+            Expr initializer;
+        } var;
+    } value;
 } Stmt;
 
-Stmt *stmt_init(enum StmtType type, Expr *expression);
+Stmt *stmt_expr_init(Expr *expression);
+Stmt *stmt_print_init(Expr *expression);
+Stmt *stmt_var_init(char const *name, Expr *expression);

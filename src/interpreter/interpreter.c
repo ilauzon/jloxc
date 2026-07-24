@@ -105,6 +105,8 @@ static Result const *interpret_literal(Expr const *const expr) {
     return result;
 }
 
+static Result const *interpret_var(Expr const *const expr) { return NULL; }
+
 static Result const *interpret_grouping(Expr const *const expr) {
     return evaluate(expr->value.grouping.expression);
 }
@@ -256,6 +258,8 @@ static Result const *interpret_ternary(Expr const *const expr) {
 
 static Result const *evaluate(Expr const *const expr) {
     switch (expr->type) {
+    case ExprType_VAR:
+        return interpret_var(expr);
     case ExprType_UNARY:
         return interpret_unary(expr);
     case ExprType_BINARY:
@@ -272,12 +276,12 @@ static Result const *evaluate(Expr const *const expr) {
 
 static void interpret_stmt_expr(Interpreter *interpreter,
                                 Stmt const *const stmt) {
-    evaluate(&stmt->expression);
+    evaluate(&stmt->value.expr.expression);
 }
 
 static void interpret_stmt_print(Interpreter *interpreter,
                                  Stmt const *const stmt) {
-    Result const *const value = evaluate(&stmt->expression);
+    Result const *const value = evaluate(&stmt->value.print.expression);
     if (errorhandler_haderror()) {
         free((Result *)value);
         return;

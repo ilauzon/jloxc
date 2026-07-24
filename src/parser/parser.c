@@ -3,26 +3,36 @@
  *
  * Expression grammar:
  *
+ * program            -> declaration* EOF ;
+ * declaration        -> varDecl
+ *                     | statement ;
+ * varDecl            -> "var" IDENTIFIER ( "=" expression )? ";" ;
+ * statement          -> exprStmt
+ *                     | printStmt ;
+ * exprStmt           -> expression ";" ;
+ * printStmt          -> "print" expression ";" ;
  * expression         -> comma ;
  * comma              -> conditional ( "," conditional )* ;
  * conditional        -> expression ? expression : conditional
- *                       | expression ;
+ *                     | expression ;
  * equality           -> comparison ( equality_rhs )*
- *                       | equality_rhs ;
+ *                     | equality_rhs ;
  * equality_rhs       -> ( "!=" | "==" ) comparison ;
  * comparison         -> term ( comparison_rhs )*
- *                       | comparison_rhs ;
+ *                     | comparison_rhs ;
  * comparison_rhs     -> ( ">" | ">=" | "<" | "<=" ) term ;
  * term               -> factor ( term_rhs )*
- *                       | term_rhs ;
+ *                     | term_rhs ;
  * term_rhs           -> ( "-" | "+" ) factor ;
  * factor             -> unary ( factor_rhs )*
- *                       | factor_rhs;
+ *                     | factor_rhs;
  * factor_rhs         -> ( "/" | "*" ) unary ;
  * unary              -> ( "!" | "-" ) unary
- *                       | conditional ;
- * primary            -> NUMBER | STRING | "true" | "false" | "nil"
- *                       | "(" expression ")" ;
+ *                     | conditional ;
+ * primary            -> "true" | "false" | "nil"
+ *                     | NUMBER | STRING
+ *                     | "(" expression ")"
+ *                     | IDENTIFIER ;
  */
 
 #include "parser.h"
@@ -275,6 +285,10 @@ static Expr *primary(Parser *parser) {
         return expr_init_literal(current);
     }
 
+    if (match(parser, 1, TokenType_IDENTIFIER)) {
+        return expr_init_var(previous(parser));
+    }
+
     if (match(parser, 1, TokenType_LEFT_PAREN)) {
         Expr *expr = expression(parser);
         consume(parser, TokenType_RIGHT_PAREN, "Expect ')' after expression.");
@@ -284,6 +298,7 @@ static Expr *primary(Parser *parser) {
         }
         return (Expr *)expr_init_grouping(expr);
     }
+
     error(peek(parser), "Expect expression");
     return NULL;
 }
@@ -386,7 +401,7 @@ static Stmt *expression_statement(Parser *parser) {
         free(value);
         return NULL;
     }
-    Stmt *stmt = stmt_init(StmtType_EXPR, value);
+    Stmt *stmt = stmt_expr_init(value);
     free(value);
     return stmt;
 }
@@ -398,7 +413,7 @@ static Stmt *print_statement(Parser *parser) {
         free(value);
         return NULL;
     }
-    Stmt *stmt = stmt_init(StmtType_PRINT, value);
+    Stmt *stmt = stmt_print_init(value);
     free(value);
     return stmt;
 }
@@ -408,6 +423,36 @@ static Stmt *statement(Parser *parser) {
         return print_statement(parser);
     }
     return expression_statement(parser);
+}
+
+static Stmt *varDecl(Parser *parser) {
+    Token const *const name =
+        consume(parser, TokenType_IDENTIFIER, "Expect variable name.");
+    if (panic_mode) {
+        return NULL;
+    }
+    Expr *value = NULL;
+    if (match(parser, 1, TokenType_EQUAL)) {
+        value = expression(parser);
+        if (panic_mode) {
+            free(value);
+            return NULL;
+        }
+    }
+
+    consume(parser, TokenType_SEMICOLON, "Expect ';' after value.");
+    if (panic_mode) {
+        free(value);
+        return NULL;
+    }
+
+    Stmt *stmt = stmt_var_init(name->lexeme, value);
+    if (panic_mode) {
+        free(value);
+        free(stmt);
+        return NULL;
+    }
+    return stmt;
 }
 
 static void synchronize(Parser *parser) {
@@ -434,6 +479,21 @@ static void synchronize(Parser *parser) {
     }
 }
 
+static Stmt *declaration(Parser *parser) {
+    Stmt *stmt;
+    if (match(parser, 1, TokenType_VAR)) {
+        stmt = varDecl(parser);
+    } else {
+        stmt = statement(parser);
+    }
+
+    if (panic_mode) {
+        synchronize(parser);
+    }
+
+    return stmt;
+}
+
 Stmt *parser_parse(Token const *const tokens, size_t const tokens_len,
                    size_t *return_length_ptr) {
     Parser *parser = init(tokens, tokens_len);
@@ -444,20 +504,13 @@ Stmt *parser_parse(Token const *const tokens, size_t const tokens_len,
     while (!is_at_end(parser)) {
         (*return_length_ptr)++;
         statements = realloc(statements, *return_length_ptr * sizeof(Stmt));
-        Stmt *stmt = statement(parser);
+        Stmt *stmt = declaration(parser);
 
-        if (panic_mode) {
-            panic_mode = false;
-            *return_length_ptr = 0;
-            free(statements);
+        if (stmt != NULL) {
+            statements[*return_length_ptr - 1] = *stmt;
             free(stmt);
-            statements = NULL;
-            free(parser);
-            break;
         }
-
-        statements[*return_length_ptr - 1] = *stmt;
-        free(stmt);
     }
+    free(parser);
     return statements;
 }
