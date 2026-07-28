@@ -13,8 +13,8 @@
  * printStmt          -> "print" expression ";" ;
  * expression         -> comma ;
  * comma              -> conditional ( "," conditional )* ;
- * conditional        -> expression ? expression : conditional
- *                     | expression ;
+ * conditional        -> equality ? equality : conditional
+ *                     | equality ;
  * equality           -> comparison ( equality_rhs )*
  *                     | equality_rhs ;
  * equality_rhs       -> ( "!=" | "==" ) comparison ;
@@ -42,6 +42,7 @@
 #include "expr.h"
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 typedef struct {
@@ -49,12 +50,6 @@ typedef struct {
     size_t tokens_len;
     int current;
 } Parser;
-
-/**
- * @brief Flag for panic mode, where the parser will unwind until reaching a
- * synchronization point.
- */
-static bool panic_mode = false;
 
 static Parser *init(Token const *const tokens, size_t const tokens_len) {
     Parser *p = calloc(1, sizeof(Parser));
@@ -105,9 +100,10 @@ static Token const *advance(Parser *parser) {
     return previous(parser);
 }
 
-static void error(Token const *const token, char const *const message) {
+static void error(Token const *const token, char const *const message,
+                  bool *const panic_mode) {
     errorhandler_printerror_token(token, message);
-    panic_mode = true;
+    *panic_mode = true;
 }
 
 /**
@@ -120,12 +116,12 @@ static void error(Token const *const token, char const *const message) {
  * @returns The consumed token.
  */
 static Token const *consume(Parser *parser, enum TokenType type,
-                            char const *const message) {
+                            char const *const message, bool *const panic_mode) {
     Token const *token = peek(parser);
     if (token->type == type) {
         return advance(parser);
     }
-    error(token, message);
+    error(token, message, panic_mode);
     return NULL;
 }
 
@@ -162,10 +158,12 @@ static bool check(Parser const *const parser, int const arg_count, ...) {
     for (int i = 0; i < arg_count; i++) {
         enum TokenType type = va_arg(types, enum TokenType);
         if (check_single(parser, type)) {
+            va_end(types);
             return true;
         }
     }
 
+    va_end(types);
     return false;
 }
 
@@ -184,9 +182,11 @@ static bool match(Parser *const parser, int const arg_count, ...) {
         enum TokenType type = va_arg(types, enum TokenType);
         if (check_single(parser, type)) {
             advance(parser);
+            va_end(types);
             return true;
         }
     }
+    va_end(types);
     return false;
 }
 
@@ -209,9 +209,10 @@ static bool type_is_in_list(enum TokenType type, size_t size,
  * production.
  * @return A binary expression.
  */
-static Expr *parse_left_assoc_binary(Expr *(*next_production)(Parser *parser),
-                                     Parser *parser, int const operator_count,
-                                     ...) {
+static Expr *parse_left_assoc_binary(Expr *(*next_production)(Parser *parser,
+                                                              bool *panic_mode),
+                                     Parser *parser, bool *panic_mode,
+                                     int const operator_count, ...) {
     // parse operator token types into list
     enum TokenType *types_to_check =
         calloc(operator_count, sizeof(enum TokenType));
@@ -221,6 +222,7 @@ static Expr *parse_left_assoc_binary(Expr *(*next_production)(Parser *parser),
         enum TokenType type = va_arg(types, enum TokenType);
         types_to_check[i] = type;
     }
+    va_end(types);
 
     // check if the parser is on the operator right now (i.e. the user forgot
     // the left-hand operand), if so emit an error.
@@ -229,9 +231,9 @@ static Expr *parse_left_assoc_binary(Expr *(*next_production)(Parser *parser),
     if (type_is_in_list(current->type, operator_count, types_to_check)) {
         Expr *left = (Expr *)expr_init_missing();
         Token const *operator = advance(parser);
-        Expr *right = next_production(parser);
+        Expr *right = next_production(parser, panic_mode);
 
-        if (panic_mode) {
+        if (*panic_mode) {
             free(types_to_check);
             free(left);
             free(right);
@@ -239,7 +241,8 @@ static Expr *parse_left_assoc_binary(Expr *(*next_production)(Parser *parser),
         }
 
         Expr *expr = (Expr *)expr_init_binary(left, operator, right);
-        error(operator, "binary operator missing left-hand operand");
+        error(operator, "binary operator missing left-hand operand",
+              panic_mode);
         free(types_to_check);
         free(left);
         free(right);
@@ -247,8 +250,8 @@ static Expr *parse_left_assoc_binary(Expr *(*next_production)(Parser *parser),
         return NULL;
     }
 
-    Expr *expr = next_production(parser);
-    if (panic_mode) {
+    Expr *expr = next_production(parser, panic_mode);
+    if (*panic_mode) {
         free(types_to_check);
         free(expr);
         return NULL;
@@ -257,15 +260,15 @@ static Expr *parse_left_assoc_binary(Expr *(*next_production)(Parser *parser),
     while (
         type_is_in_list(peek(parser)->type, operator_count, types_to_check)) {
         Token const *operator = advance(parser);
-        Expr *right = next_production(parser);
-        if (panic_mode) {
+        Expr *right = next_production(parser, panic_mode);
+        if (*panic_mode) {
             free(types_to_check);
             free(expr);
             free(right);
             return NULL;
         }
         expr = (Expr *)expr_init_binary(expr, operator, right);
-        if (panic_mode) {
+        if (*panic_mode) {
             free(types_to_check);
             free(expr);
             free(right);
@@ -277,9 +280,9 @@ static Expr *parse_left_assoc_binary(Expr *(*next_production)(Parser *parser),
     return expr;
 }
 
-static Expr *expression(Parser *parser);
+static Expr *expression(Parser *parser, bool *panic_mode);
 
-static Expr *primary(Parser *parser) {
+static Expr *primary(Parser *parser, bool *panic_mode) {
     if (expr_token_is_literal(peek(parser))) {
         Token const *const current = advance(parser);
         return expr_init_literal(current);
@@ -290,78 +293,79 @@ static Expr *primary(Parser *parser) {
     }
 
     if (match(parser, 1, TokenType_LEFT_PAREN)) {
-        Expr *expr = expression(parser);
-        consume(parser, TokenType_RIGHT_PAREN, "Expect ')' after expression.");
-        if (panic_mode) {
+        Expr *expr = expression(parser, panic_mode);
+        consume(parser, TokenType_RIGHT_PAREN, "Expect ')' after expression.",
+                panic_mode);
+        if (*panic_mode) {
             free(expr);
             return NULL;
         }
         return (Expr *)expr_init_grouping(expr);
     }
 
-    error(peek(parser), "Expect expression");
+    error(peek(parser), "Expect expression", panic_mode);
     return NULL;
 }
 
-static Expr *unary(Parser *parser) {
+static Expr *unary(Parser *parser, bool *panic_mode) {
     if (match(parser, 2, TokenType_BANG, TokenType_MINUS)) {
         Token const *operator = previous(parser);
-        Expr *expr = unary(parser);
-        if (panic_mode) {
+        Expr *expr = unary(parser, panic_mode);
+        if (*panic_mode) {
             free(expr);
             return NULL;
         }
         return (Expr *)expr_init_unary(operator, expr);
     }
-    return primary(parser);
+    return primary(parser, panic_mode);
 }
 
-static Expr *factor(Parser *parser) {
-    return parse_left_assoc_binary(unary, parser, 2, TokenType_SLASH,
-                                   TokenType_STAR);
+static Expr *factor(Parser *parser, bool *panic_mode) {
+    return parse_left_assoc_binary(unary, parser, panic_mode, 2,
+                                   TokenType_SLASH, TokenType_STAR);
 }
 
-static Expr *term(Parser *parser) {
-    return parse_left_assoc_binary(factor, parser, 2, TokenType_PLUS,
-                                   TokenType_MINUS);
+static Expr *term(Parser *parser, bool *panic_mode) {
+    return parse_left_assoc_binary(factor, parser, panic_mode, 2,
+                                   TokenType_PLUS, TokenType_MINUS);
 }
 
-static Expr *comparison(Parser *parser) {
-    return parse_left_assoc_binary(term, parser, 4, TokenType_GREATER,
-                                   TokenType_GREATER_EQUAL,
+static Expr *comparison(Parser *parser, bool *panic_mode) {
+    return parse_left_assoc_binary(term, parser, panic_mode, 4,
+                                   TokenType_GREATER, TokenType_GREATER_EQUAL,
                                    TokenType_LESS_EQUAL, TokenType_LESS);
 }
 
-static Expr *equality(Parser *parser) {
-    return parse_left_assoc_binary(comparison, parser, 2, TokenType_BANG_EQUAL,
-                                   TokenType_EQUAL_EQUAL);
+static Expr *equality(Parser *parser, bool *panic_mode) {
+    return parse_left_assoc_binary(comparison, parser, panic_mode, 2,
+                                   TokenType_BANG_EQUAL, TokenType_EQUAL_EQUAL);
 }
 
-static Expr *conditional(Parser *parser) {
-    Expr *expr = equality(parser);
-    if (panic_mode) {
+static Expr *conditional(Parser *parser, bool *panic_mode) {
+    Expr *expr = equality(parser, panic_mode);
+    if (*panic_mode) {
         free(expr);
         return NULL;
     }
 
     if (check(parser, 1, TokenType_QUESTION)) {
         Token const *left_operator = advance(parser);
-        Expr *middle_expr = equality(parser);
-        if (panic_mode) {
+        Expr *middle_expr = equality(parser, panic_mode);
+        if (*panic_mode) {
             free(expr);
             free(middle_expr);
             return NULL;
         }
         consume(parser, TokenType_COLON,
-                "Expect ':' after '?' in ternary conditional.");
-        if (panic_mode) {
+                "Expect ':' after '?' in ternary conditional.", panic_mode);
+        if (*panic_mode) {
             free(expr);
             free(middle_expr);
             return NULL;
         }
         Token const *right_operator = previous(parser);
-        Expr *right_expr = conditional(parser);
-        if (panic_mode) {
+        Expr *right_expr = conditional(parser, panic_mode);
+        if (*panic_mode) {
             free(expr);
             free(middle_expr);
             free(right_expr);
@@ -373,16 +377,16 @@ static Expr *conditional(Parser *parser) {
     return expr;
 }
 
-static Expr *comma(Parser *parser) {
-    Expr *expr = conditional(parser);
-    if (panic_mode) {
+static Expr *comma(Parser *parser, bool *panic_mode) {
+    Expr *expr = conditional(parser, panic_mode);
+    if (*panic_mode) {
         free(expr);
         return NULL;
     }
     while (match(parser, 1, TokenType_COMMA)) {
         Token const *operator = previous(parser);
-        Expr *right = conditional(parser);
-        if (panic_mode) {
+        Expr *right = conditional(parser, panic_mode);
+        if (*panic_mode) {
             free(expr);
             free(right);
             return NULL;
@@ -392,12 +396,14 @@ static Expr *comma(Parser *parser) {
     return expr;
 }
 
-static Expr *expression(Parser *parser) { return comma(parser); }
+static Expr *expression(Parser *parser, bool *panic_mode) {
+    return comma(parser, panic_mode);
+}
 
-static Stmt *expression_statement(Parser *parser) {
-    Expr *value = expression(parser);
-    consume(parser, TokenType_SEMICOLON, "Expect ';' after value.");
-    if (panic_mode) {
+static Stmt *expression_statement(Parser *parser, bool *panic_mode) {
+    Expr *value = expression(parser, panic_mode);
+    consume(parser, TokenType_SEMICOLON, "Expect ';' after value.", panic_mode);
+    if (*panic_mode) {
         free(value);
         return NULL;
     }
@@ -406,10 +412,14 @@ static Stmt *expression_statement(Parser *parser) {
     return stmt;
 }
 
-static Stmt *print_statement(Parser *parser) {
-    Expr *value = expression(parser);
-    consume(parser, TokenType_SEMICOLON, "Expect ';' after value.");
-    if (panic_mode) {
+static Stmt *print_statement(Parser *parser, bool *panic_mode) {
+    Expr *value = expression(parser, panic_mode);
+    if (*panic_mode) {
+        free(value);
+        return NULL;
+    }
+    consume(parser, TokenType_SEMICOLON, "Expect ';' after value.", panic_mode);
+    if (*panic_mode) {
         free(value);
         return NULL;
     }
@@ -418,36 +428,36 @@ static Stmt *print_statement(Parser *parser) {
     return stmt;
 }
 
-static Stmt *statement(Parser *parser) {
+static Stmt *statement(Parser *parser, bool *panic_mode) {
     if (match(parser, 1, TokenType_PRINT)) {
-        return print_statement(parser);
+        return print_statement(parser, panic_mode);
     }
-    return expression_statement(parser);
+    return expression_statement(parser, panic_mode);
 }
 
-static Stmt *varDecl(Parser *parser) {
-    Token const *const name =
-        consume(parser, TokenType_IDENTIFIER, "Expect variable name.");
-    if (panic_mode) {
+static Stmt *varDecl(Parser *parser, bool *panic_mode) {
+    Token const *const name = consume(parser, TokenType_IDENTIFIER,
+                                      "Expect variable name.", panic_mode);
+    if (*panic_mode) {
         return NULL;
     }
     Expr *value = NULL;
     if (match(parser, 1, TokenType_EQUAL)) {
-        value = expression(parser);
-        if (panic_mode) {
+        value = expression(parser, panic_mode);
+        if (*panic_mode) {
             free(value);
             return NULL;
         }
     }
 
-    consume(parser, TokenType_SEMICOLON, "Expect ';' after value.");
-    if (panic_mode) {
+    consume(parser, TokenType_SEMICOLON, "Expect ';' after value.", panic_mode);
+    if (*panic_mode) {
         free(value);
         return NULL;
     }
 
     Stmt *stmt = stmt_var_init(name->lexeme, value);
-    if (panic_mode) {
+    if (*panic_mode) {
         free(value);
         free(stmt);
         return NULL;
@@ -456,7 +466,6 @@ static Stmt *varDecl(Parser *parser) {
 }
 
 static void synchronize(Parser *parser) {
-    panic_mode = false;
     advance(parser);
     while (!is_at_end(parser)) {
         if (previous(parser)->type == TokenType_SEMICOLON) {
@@ -481,10 +490,11 @@ static void synchronize(Parser *parser) {
 
 static Stmt *declaration(Parser *parser) {
     Stmt *stmt;
+    bool panic_mode = false;
     if (match(parser, 1, TokenType_VAR)) {
-        stmt = varDecl(parser);
+        stmt = varDecl(parser, &panic_mode);
     } else {
-        stmt = statement(parser);
+        stmt = statement(parser, &panic_mode);
     }
 
     if (panic_mode) {
