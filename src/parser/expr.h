@@ -94,8 +94,6 @@ typedef struct Expr {
     } value;
 } Expr;
 
-char const *expr_to_string(Expr const *const expr);
-
 typedef struct {
     enum StmtType {
         StmtType_EXPR,

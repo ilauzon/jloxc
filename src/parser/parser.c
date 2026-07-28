@@ -214,8 +214,7 @@ static Expr *parse_left_assoc_binary(Expr *(*next_production)(Parser *parser,
                                      Parser *parser, bool *panic_mode,
                                      int const operator_count, ...) {
     // parse operator token types into list
-    enum TokenType *types_to_check =
-        calloc(operator_count, sizeof(enum TokenType));
+    enum TokenType types_to_check[operator_count];
     va_list types;
     va_start(types, operator_count);
     for (int i = 0; i < operator_count; ++i) {
@@ -234,7 +233,6 @@ static Expr *parse_left_assoc_binary(Expr *(*next_production)(Parser *parser,
         Expr *right = next_production(parser, panic_mode);
 
         if (*panic_mode) {
-            free(types_to_check);
             free(left);
             free(right);
             return NULL;
@@ -243,7 +241,6 @@ static Expr *parse_left_assoc_binary(Expr *(*next_production)(Parser *parser,
         Expr *expr = (Expr *)expr_init_binary(left, operator, right);
         error(operator, "binary operator missing left-hand operand",
               panic_mode);
-        free(types_to_check);
         free(left);
         free(right);
         free(expr);
@@ -252,7 +249,6 @@ static Expr *parse_left_assoc_binary(Expr *(*next_production)(Parser *parser,
 
     Expr *expr = next_production(parser, panic_mode);
     if (*panic_mode) {
-        free(types_to_check);
         free(expr);
         return NULL;
     }
@@ -262,21 +258,18 @@ static Expr *parse_left_assoc_binary(Expr *(*next_production)(Parser *parser,
         Token const *operator = advance(parser);
         Expr *right = next_production(parser, panic_mode);
         if (*panic_mode) {
-            free(types_to_check);
             free(expr);
             free(right);
             return NULL;
         }
         expr = (Expr *)expr_init_binary(expr, operator, right);
         if (*panic_mode) {
-            free(types_to_check);
             free(expr);
             free(right);
             return NULL;
         }
     }
 
-    free(types_to_check);
     return expr;
 }
 
