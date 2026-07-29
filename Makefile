@@ -26,10 +26,16 @@ $(OBJ_DIR)/%.o : $(SRC_DIR)/%.c Makefile
 
 -include $(DEPENDS)
 
-.PHONY : all run clean
+.PHONY : all run clean test
 all : $(TARGET)
 run : $(TARGET)
 	$(TARGET)
 clean :
 	rm -f $(OBJECTS) $(DEPENDS) $(TARGET)
+jloxtest: ./tests/test.c
+	@$(CC) -g $^ -o $@
+test: $(TARGET) jloxtest
+	@cd ./tests
+	@./jloxtest $(TARGET)
+
 

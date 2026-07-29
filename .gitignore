@@ -1,4 +1,5 @@
 build/
 jlox
+jloxtest
 *.o
 *.d

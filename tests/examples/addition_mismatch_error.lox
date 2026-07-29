@@ -1,0 +1,2 @@
+/* Expect an error here */
+print "abc" + 123;
