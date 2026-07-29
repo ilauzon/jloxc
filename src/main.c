@@ -48,15 +48,9 @@ void run(char const line[static 1]) {
     print_tokens(token_list_size, tokens);
 
     size_t stmts_len = 0;
-    Stmt *stmts = parser_parse(tokens, token_list_size, &stmts_len);
-    for (size_t i = 0; i < token_list_size; ++i) {
-        Token *t = tokens + i;
-        free((char *)t->lexeme);
-        if (t->literal != NULL) {
-            free((void *)t->literal);
-        }
-    }
-    free(tokens);
+    ArenaAllocator *parser_allocator = arena_init(1024);
+    Stmt **stmts =
+        parser_parse(parser_allocator, tokens, token_list_size, &stmts_len);
 
     if (errorhandler_haderror()) {
         return;
@@ -64,7 +58,6 @@ void run(char const line[static 1]) {
 
     Interpreter *interpreter = interpreter_init();
     interpreter_interpret(interpreter, stmts_len, stmts);
-    free(stmts);
 }
 
 int run_file(char const path[static 1]) {

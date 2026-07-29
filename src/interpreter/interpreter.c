@@ -276,12 +276,12 @@ static Result const *evaluate(Expr const *const expr) {
 
 static void interpret_stmt_expr(Interpreter *interpreter,
                                 Stmt const *const stmt) {
-    evaluate(&stmt->value.expr.expression);
+    evaluate(stmt->value.expr.expression);
 }
 
 static void interpret_stmt_print(Interpreter *interpreter,
                                  Stmt const *const stmt) {
-    Result const *const value = evaluate(&stmt->value.print.expression);
+    Result const *const value = evaluate(stmt->value.print.expression);
     if (errorhandler_haderror()) {
         free((Result *)value);
         return;
@@ -294,9 +294,9 @@ Interpreter *interpreter_init(void) {
     return interpreter;
 }
 void interpreter_interpret(Interpreter *interpreter, size_t const stmt_count,
-                           Stmt const stmts[stmt_count]) {
+                           Stmt *stmts[stmt_count]) {
     for (size_t i = 0; i < stmt_count; ++i) {
-        Stmt const *stmt = stmts + i;
+        Stmt const *stmt = stmts[i];
         switch (stmt->type) {
         case StmtType_EXPR:
             interpret_stmt_expr(interpreter, stmt);

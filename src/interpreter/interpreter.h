@@ -27,4 +27,4 @@ typedef struct {
 
 Interpreter *interpreter_init(void);
 void interpreter_interpret(Interpreter *interpreter, size_t const stmt_count,
-                           Stmt const stmts[stmt_count]);
+                           Stmt *stmts[stmt_count]);

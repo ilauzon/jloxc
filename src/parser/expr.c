@@ -1,3 +1,7 @@
+/*
+ * Contains initialization functions for all types of Exprs.
+ */
+
 #include "expr.h"
 #include "../errors/errorhandler.h"
 #include <stdarg.h>
@@ -7,10 +11,10 @@
 
 /* ternary expressions */
 
-Expr *expr_init_ternary(Expr const *left, Token const *operator_left,
-                        Expr const *middle, Token const *operator_right,
-                        Expr const *right) {
-    Expr *e = calloc(1, sizeof(Expr));
+Expr *expr_init_ternary(ArenaAllocator *allocator, Expr const *left,
+                        Token const *operator_left, Expr const *middle,
+                        Token const *operator_right, Expr const *right) {
+    Expr *e = arena_allocate(allocator, sizeof(Expr));
     e->type = ExprType_TERNARY;
     if (operator_left->type == TokenType_QUESTION &&
         operator_right->type == TokenType_COLON) {
@@ -29,9 +33,9 @@ Expr *expr_init_ternary(Expr const *left, Token const *operator_left,
 
 /* binary expressions */
 
-Expr *expr_init_binary(Expr const *left, Token const *const operator,
-                       Expr const *right) {
-    Expr *e = calloc(1, sizeof(Expr));
+Expr *expr_init_binary(ArenaAllocator *allocator, Expr const *left,
+                       Token const *const operator, Expr const *right) {
+    Expr *e = arena_allocate(allocator, sizeof(Expr));
     e->type = ExprType_BINARY;
     e->value.binary.left = left;
     e->value.binary.right = right;
@@ -80,8 +84,9 @@ Expr *expr_init_binary(Expr const *left, Token const *const operator,
 
 /* unary expressions */
 
-Expr *expr_init_unary(Token const *const operator, Expr const *const right) {
-    Expr *e = calloc(1, sizeof(Expr));
+Expr *expr_init_unary(ArenaAllocator *allocator, Token const *const operator,
+                      Expr const *const right) {
+    Expr *e = arena_allocate(allocator, sizeof(Expr));
     e->type = ExprType_UNARY;
     e->line = operator->line;
     switch (operator->type) {
@@ -103,8 +108,8 @@ Expr *expr_init_unary(Token const *const operator, Expr const *const right) {
 
 /* variable expressions */
 
-Expr *expr_init_var(Token const *const name) {
-    Expr *e = calloc(1, sizeof(Expr));
+Expr *expr_init_var(ArenaAllocator *allocator, Token const *const name) {
+    Expr *e = arena_allocate(allocator, sizeof(Expr));
     e->type = ExprType_VAR;
     e->line = name->line;
     e->value.var.name = name->lexeme;
@@ -113,8 +118,8 @@ Expr *expr_init_var(Token const *const name) {
 
 /* literals */
 
-Expr *expr_init_literal(Token const *const token) {
-    Expr *e = calloc(1, sizeof(Expr));
+Expr *expr_init_literal(ArenaAllocator *allocator, Token const *const token) {
+    Expr *e = arena_allocate(allocator, sizeof(Expr));
     e->type = ExprType_LITERAL;
     e->line = token->line;
 
@@ -133,6 +138,8 @@ Expr *expr_init_literal(Token const *const token) {
         break;
     case TokenType_IDENTIFIER:
         e->value.literal.type = ExprLiteralType_IDENTIFIER;
+        // TODO fix this so that it works with the arena allocator, i.e. copy
+        // the value instead of its pointer.
         e->value.literal.value = token->lexeme;
         break;
     case TokenType_STRING:
@@ -147,16 +154,15 @@ Expr *expr_init_literal(Token const *const token) {
         errorhandler_printerror(e->line,
                                 "attempt to create literal expression failed "
                                 "due to invalid TokenType");
-        free(e);
         return NULL;
     }
 
     return e;
 }
 
-Expr *expr_init_missing(void) {
+Expr *expr_init_missing(ArenaAllocator *allocator) {
     Token *token = token_init(TokenType_MISSING, NULL, NULL, 0);
-    Expr *literal = expr_init_literal(token);
+    Expr *literal = expr_init_literal(allocator, token);
     free(token);
     return literal;
 }
@@ -178,8 +184,9 @@ bool expr_token_is_literal(Token const *const token) {
 
 /* groupings */
 
-Expr *expr_init_grouping(Expr const *const expression) {
-    Expr *e = calloc(1, sizeof(Expr));
+Expr *expr_init_grouping(ArenaAllocator *allocator,
+                         Expr const *const expression) {
+    Expr *e = arena_allocate(allocator, sizeof(Expr));
     e->type = ExprType_GROUPING;
     e->value.grouping.expression = expression;
     return e;
@@ -187,24 +194,25 @@ Expr *expr_init_grouping(Expr const *const expression) {
 
 /* statements */
 
-Stmt *stmt_expr_init(Expr *expression) {
-    Stmt *stmt = calloc(1, sizeof(Stmt));
+Stmt *stmt_expr_init(ArenaAllocator *allocator, Expr *expression) {
+    Stmt *stmt = arena_allocate(allocator, sizeof(Stmt));
     stmt->type = StmtType_EXPR;
-    stmt->value.expr.expression = *expression;
+    stmt->value.expr.expression = expression;
     return stmt;
 }
 
-Stmt *stmt_print_init(Expr *expression) {
-    Stmt *stmt = calloc(1, sizeof(Stmt));
+Stmt *stmt_print_init(ArenaAllocator *allocator, Expr *expression) {
+    Stmt *stmt = arena_allocate(allocator, sizeof(Stmt));
     stmt->type = StmtType_PRINT;
-    stmt->value.print.expression = *expression;
+    stmt->value.print.expression = expression;
     return stmt;
 }
 
-Stmt *stmt_var_init(char const *name, Expr *expression) {
-    Stmt *stmt = calloc(1, sizeof(Stmt));
+Stmt *stmt_var_init(ArenaAllocator *allocator, char const *name,
+                    Expr *expression) {
+    Stmt *stmt = arena_allocate(allocator, sizeof(Stmt));
     stmt->type = StmtType_VAR;
     stmt->value.var.name = name;
-    stmt->value.var.initializer = *expression;
+    stmt->value.var.initializer = expression;
     return stmt;
 }
