@@ -37,27 +37,39 @@ static void print_tokens(size_t tokens_len, Token tokens[tokens_len]) {
     }
 }
 
+void free_tokens(Token *tokens, size_t len) {
+    for (size_t i = 0; i < len; ++i) {
+        free((void *)tokens[i].lexeme);
+        if (tokens[i].literal != NULL) {
+            free((void *)tokens[i].literal->value);
+            free((void *)tokens[i].literal);
+        }
+    }
+    free(tokens);
+}
+
 void run(char const line[static 1]) {
     size_t token_list_size = 0;
     Token *tokens = scanner_scan_tokens(line, &token_list_size);
 
-    if (errorhandler_haderror()) {
-        return;
+    if (!errorhandler_haderror()) {
+        size_t stmts_len = 0;
+        ArenaAllocator *parser_allocator = arena_init(1024);
+        Stmt **stmts =
+            parser_parse(parser_allocator, tokens, token_list_size, &stmts_len);
+
+        if (!errorhandler_haderror()) {
+            Interpreter *interpreter = interpreter_init();
+            interpreter_interpret(interpreter, stmts_len, stmts);
+            free(interpreter);
+        }
+
+        free(stmts);
+        arena_destroy(parser_allocator);
+        free(parser_allocator);
     }
 
-    print_tokens(token_list_size, tokens);
-
-    size_t stmts_len = 0;
-    ArenaAllocator *parser_allocator = arena_init(1024);
-    Stmt **stmts =
-        parser_parse(parser_allocator, tokens, token_list_size, &stmts_len);
-
-    if (errorhandler_haderror()) {
-        return;
-    }
-
-    Interpreter *interpreter = interpreter_init();
-    interpreter_interpret(interpreter, stmts_len, stmts);
+    free_tokens(tokens, token_list_size);
 }
 
 int run_file(char const path[static 1]) {
@@ -79,6 +91,7 @@ int run_file(char const path[static 1]) {
 
     run(contents);
     if (errorhandler_haderror()) {
+        free(contents);
         return EXIT_FAILURE;
     }
 

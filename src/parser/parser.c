@@ -459,6 +459,23 @@ static Stmt *declaration(Parser *parser) {
     }
 }
 
+/**
+ * @brief Parse the token sequence into an AST.
+ *
+ * Of each token in the sequence, pointers token->lexeme and
+ * token->literal->value are reused in the AST and are not to be freed until the
+ * AST can be disposed of.
+ *
+ * In future, this can be revisited. The lexeme and literal value are only used
+ * in certain circumstances, like creating literal expressions or variable
+ * expressions.
+ *
+ * @param allocator the arena allocator to use.
+ * @param tokens the token sequence.
+ * @param tokens_len length of the token sequence.
+ * @param return_length_ptr the number of statements returned.
+ * @return the statement list, i.e. the AST.
+ */
 Stmt **parser_parse(ArenaAllocator *allocator, Token const *const tokens,
                     size_t const tokens_len, size_t *return_length_ptr) {
     Parser *parser = init(allocator, tokens, tokens_len);
@@ -469,6 +486,8 @@ Stmt **parser_parse(ArenaAllocator *allocator, Token const *const tokens,
     while (!is_at_end(parser)) {
         arena_mark(parser->allocator);
         (*return_length_ptr)++;
+        // TODO double this when necessary instead of a realloc on every
+        // statement
         statements = realloc(statements, *return_length_ptr * sizeof(Stmt));
         Stmt *stmt = declaration(parser);
 
@@ -480,5 +499,6 @@ Stmt **parser_parse(ArenaAllocator *allocator, Token const *const tokens,
             arena_destroy_until_mark(parser->allocator);
         }
     }
+    free(parser);
     return statements;
 }

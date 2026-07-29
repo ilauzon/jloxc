@@ -170,6 +170,7 @@ static void scan_number(Scanner *const scanner) {
     string[string_length - 1] = '\0';
 
     double value = atof(string);
+    free(string);
     Literal *const literal = token_literal_init(value);
     add_token_from_literal(scanner, TokenType_NUMBER, literal);
 }
@@ -187,6 +188,7 @@ static void scan_identifier(Scanner *const scanner) {
     string[string_length - 1] = '\0';
 
     enum TokenType type = tokentype_from_string(string);
+    free(string);
 
     add_token_literal_from_type(scanner, type);
 }

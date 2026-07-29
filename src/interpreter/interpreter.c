@@ -95,7 +95,9 @@ static Result const *interpret_literal(Expr const *const expr) {
         break;
     case ExprLiteralType_STRING:
         result->type = ResultType_STRING;
-        result->value.string = literal.value;
+        result->value.string = calloc(1, strlen(literal.value) + 1);
+        memcpy((char *)result->value.string, literal.value,
+               strlen(literal.value));
         break;
     case ExprLiteralType_NUMBER:
         result->type = ResultType_NUMBER;
@@ -138,27 +140,38 @@ static Result const *interpret_unary(Expr const *const expr) {
     return result;
 }
 
+static void free_result(Result *result) {
+    if (result != NULL && result->type == ResultType_STRING) {
+        free((void *)result->value.string);
+    }
+    free(result);
+}
+
 static Result const *interpret_binary(Expr const *const expr) {
     Result const *l = evaluate(expr->value.binary.left);
     Result const *r = evaluate(expr->value.binary.right);
     Result *result = calloc(1, sizeof(Result));
 
+    Result const *ret = NULL;
+
     switch (expr->value.binary.type) {
     case ExprBinaryType_COMMA:
-        return r;
+        ret = r;
+        break;
     case ExprBinaryType_MINUS:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
             error(expr, "Both operands must be numbers.");
-            free(result);
-            return NULL;
+            break;
         }
         result->type = ResultType_NUMBER;
         result->value.number = l->value.number - r->value.number;
+        ret = result;
         break;
     case ExprBinaryType_PLUS:
-        if (l->type == ResultType_NUMBER || r->type == ResultType_NUMBER) {
+        if (l->type == ResultType_NUMBER && r->type == ResultType_NUMBER) {
             result->type = ResultType_NUMBER;
             result->value.number = l->value.number + r->value.number;
+            ret = result;
         } else if (l->type == ResultType_STRING &&
                    r->type == ResultType_STRING) {
             result->type = ResultType_STRING;
@@ -168,78 +181,80 @@ static Result const *interpret_binary(Expr const *const expr) {
             strcat(str, l->value.string);
             strcat(str + strlen(l->value.string), r->value.string);
             result->value.string = str;
+            ret = result;
         } else {
             error(expr, "Both operands must be numbers or both operands must "
                         "be strings.");
-            free(result);
-            return NULL;
         }
         break;
     case ExprBinaryType_SLASH:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
             error(expr, "Both operands must be numbers.");
-            free(result);
-            return NULL;
         }
         result->type = ResultType_NUMBER;
         result->value.number = l->value.number / r->value.number;
+        ret = result;
         break;
     case ExprBinaryType_STAR:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
             error(expr, "Both operands must be numbers.");
-            free(result);
-            return NULL;
         }
         result->type = ResultType_NUMBER;
         result->value.number = l->value.number * r->value.number;
+        ret = result;
         break;
     case ExprBinaryType_GREATER:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
             error(expr, "Both operands must be numbers.");
-            free(result);
-            return NULL;
         }
         result->type = ResultType_BOOLEAN;
         result->value.boolean = l->value.number > r->value.number;
+        ret = result;
         break;
     case ExprBinaryType_GREATER_EQUAL:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
             error(expr, "Both operands must be numbers.");
-            free(result);
-            return NULL;
         }
         result->type = ResultType_BOOLEAN;
         result->value.boolean = l->value.number >= r->value.number;
+        ret = result;
         break;
     case ExprBinaryType_LESS_EQUAL:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
             error(expr, "Both operands must be numbers.");
-            free(result);
-            return NULL;
         }
         result->type = ResultType_BOOLEAN;
         result->value.boolean = l->value.number <= r->value.number;
+        ret = result;
         break;
     case ExprBinaryType_LESS:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
             error(expr, "Both operands must be numbers.");
-            free(result);
-            return NULL;
         }
         result->type = ResultType_BOOLEAN;
         result->value.boolean = l->value.number < r->value.number;
+        ret = result;
         break;
     case ExprBinaryType_BANG_EQUAL:
-        free(result);
+        free_result(result);
         result = equals(l, r);
         result->value.boolean = !result->value.boolean;
+        ret = result;
         break;
     case ExprBinaryType_EQUAL_EQUAL:
-        free(result);
+        free_result(result);
         result = equals(l, r);
+        ret = result;
         break;
     }
-    return result;
+
+    if (l != ret)
+        free_result((void *)l);
+    if (r != ret)
+        free_result((void *)r);
+    if (result != ret)
+        free_result(result);
+    return ret;
 }
 
 static Result const *interpret_ternary(Expr const *const expr) {
@@ -276,17 +291,19 @@ static Result const *evaluate(Expr const *const expr) {
 
 static void interpret_stmt_expr(Interpreter *interpreter,
                                 Stmt const *const stmt) {
-    evaluate(stmt->value.expr.expression);
+    Result const *const value = evaluate(stmt->value.print.expression);
+    free_result((void *)value);
 }
 
 static void interpret_stmt_print(Interpreter *interpreter,
                                  Stmt const *const stmt) {
     Result const *const value = evaluate(stmt->value.print.expression);
     if (errorhandler_haderror()) {
-        free((Result *)value);
+        free_result((Result *)value);
         return;
     }
     print_result(value);
+    free_result((void *)value);
 }
 
 Interpreter *interpreter_init(void) {

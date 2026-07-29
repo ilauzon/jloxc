@@ -138,8 +138,9 @@ Expr *expr_init_literal(ArenaAllocator *allocator, Token const *const token) {
         break;
     case TokenType_IDENTIFIER:
         e->value.literal.type = ExprLiteralType_IDENTIFIER;
-        // TODO fix this so that it works with the arena allocator, i.e. copy
-        // the value instead of its pointer.
+        // TODO fix this so that it works with the arena allocator, e.g. copy
+        // the value instead of its pointer or use a different allocator for
+        // strings.
         e->value.literal.value = token->lexeme;
         break;
     case TokenType_STRING:

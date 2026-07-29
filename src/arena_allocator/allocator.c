@@ -1,5 +1,6 @@
 #include "allocator.h"
 #include <stdlib.h>
+#include <string.h>
 
 ArenaAllocator *arena_init(size_t initial_size) {
     // TODO add check for initial_size being greater than 0
@@ -33,5 +34,10 @@ void arena_mark(ArenaAllocator *allocator) {
 }
 
 void arena_destroy_until_mark(ArenaAllocator *allocator) {
+    // zero out memory as a precaution for future allocations expecting zeroed
+    // memory
+    void *ptr = (char *)(allocator->arena) + allocator->mark;
+    memset(ptr, 0, allocator->head - allocator->mark);
+
     allocator->head = allocator->mark;
 }
