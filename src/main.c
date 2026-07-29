@@ -48,7 +48,7 @@ void free_tokens(Token *tokens, size_t len) {
     free(tokens);
 }
 
-void run(char const line[static 1]) {
+void run(Interpreter const interpreter, char const line[static 1]) {
     size_t token_list_size = 0;
     Token *tokens = scanner_scan_tokens(line, &token_list_size);
 
@@ -59,9 +59,7 @@ void run(char const line[static 1]) {
             parser_parse(parser_allocator, tokens, token_list_size, &stmts_len);
 
         if (!errorhandler_haderror()) {
-            Interpreter *interpreter = interpreter_init();
             interpreter_interpret(interpreter, stmts_len, stmts);
-            free(interpreter);
         }
 
         free(stmts);
@@ -89,17 +87,21 @@ int run_file(char const path[static 1]) {
     contents[file_size] = '\0';
     fclose(file);
 
-    run(contents);
+    Interpreter *interpreter = interpreter_init();
+    run(*interpreter, contents);
     if (errorhandler_haderror()) {
         free(contents);
+        free(interpreter);
         return EXIT_FAILURE;
     }
 
     free(contents);
+    free(interpreter);
     return EXIT_SUCCESS;
 }
 
 int run_prompt(void) {
+    Interpreter *interpreter = interpreter_init();
     while (true) {
         printf("> ");
         char line[MAX_LINE_SIZE] = {0};
@@ -107,9 +109,10 @@ int run_prompt(void) {
         if (ret == NULL || !strlen(line)) {
             break;
         }
-        run(line);
+        run(*interpreter, line);
         errorhandler_reseterrors();
     }
+    free(interpreter);
     return EXIT_SUCCESS;
 }
 

@@ -402,9 +402,9 @@ static Stmt *varDecl(Parser *parser) {
     if (parser->panicking) {
         return NULL;
     }
-    Expr *value = NULL;
+    Expr *initializer = NULL;
     if (match(parser, 1, TokenType_EQUAL)) {
-        value = expression(parser);
+        initializer = expression(parser);
         if (parser->panicking) {
             return NULL;
         }
@@ -415,7 +415,7 @@ static Stmt *varDecl(Parser *parser) {
         return NULL;
     }
 
-    Stmt *stmt = stmt_var_init(parser->allocator, name->lexeme, value);
+    Stmt *stmt = stmt_var_init(parser->allocator, name->lexeme, initializer);
     if (parser->panicking) {
         return NULL;
     }

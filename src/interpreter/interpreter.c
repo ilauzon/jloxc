@@ -1,6 +1,7 @@
 #include "interpreter.h"
 #include "../errors/errorhandler.h"
 #include "../parser/expr.h"
+#include "result.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,31 +9,60 @@
 
 static bool had_error = false;
 
-static Result const *evaluate(Expr const *const expr);
+static Result const *evaluate(Interpreter const interpreter,
+                              Expr const *const expr);
 
-static void print_result(Result const *const result) {
+static Result const *read_defined_variable(Interpreter const interpreter,
+                                           Result const *const variable) {
+    if (variable->type != ResultType_IDENTIFIER) {
+        errorhandler_printerror(variable->line,
+                                "Internal error, non-identifier Result passed "
+                                "into read_defined_variable.");
+        return NULL;
+    }
+    Result const *value =
+        environment_read(*interpreter.state, variable->value.name);
+    if (value == NULL) {
+        char message[100] = {0};
+        snprintf(message, 99, "Variable '%s' is not defined.",
+                 variable->value.name);
+        errorhandler_printerror(variable->line, message);
+        had_error = true;
+    }
+    return value;
+}
+
+static void print_result(Interpreter const interpreter,
+                         Result const *const result) {
     switch (result->type) {
     case ResultType_NULL:
-        printf("<nil>");
+        printf("<nil>\n");
         break;
     case ResultType_STRING:
-        printf("%s", result->value.string);
+        printf("%s\n", result->value.string);
         break;
     case ResultType_NUMBER:
-        printf("%f", result->value.number);
+        printf("%f\n", result->value.number);
         break;
     case ResultType_BOOLEAN:
         if (result->value.boolean) {
-            printf("<true>");
+            printf("<true>\n");
         } else {
-            printf("<false>");
+            printf("<false>\n");
         }
         break;
     case ResultType_IDENTIFIER:
-        printf("<identifier>");
+        Result const *value = read_defined_variable(interpreter, result);
+        if (had_error) {
+            return;
+        }
+        if (value == NULL) {
+            printf("<uninitialized>\n");
+        } else {
+            print_result(interpreter, value);
+        }
         break;
     }
-    printf("\n");
 }
 
 static void error(Expr const *const e, char const *const message) {
@@ -54,6 +84,7 @@ static bool is_truthy(Result const *const result) {
 
 static Result *equals(Result const *const first, Result const *const second) {
     Result *result = calloc(1, sizeof(Result));
+    result->line = first->line;
     result->type = ResultType_BOOLEAN;
     if (first->type == ResultType_NUMBER && second->type == ResultType_NUMBER) {
         result->value.boolean = first->value.number == second->value.number;
@@ -73,6 +104,7 @@ static Result *equals(Result const *const first, Result const *const second) {
 static Result const *interpret_literal(Expr const *const expr) {
     ExprLiteral const literal = expr->value.literal;
     Result *result = calloc(1, sizeof(Result));
+    result->line = expr->line;
 
     switch (literal.type) {
     case ExprLiteralType_MISSING:
@@ -92,12 +124,11 @@ static Result const *interpret_literal(Expr const *const expr) {
         break;
     case ExprLiteralType_IDENTIFIER:
         result->type = ResultType_IDENTIFIER;
+        result->value.name = strdup(literal.value);
         break;
     case ExprLiteralType_STRING:
         result->type = ResultType_STRING;
-        result->value.string = calloc(1, strlen(literal.value) + 1);
-        memcpy((char *)result->value.string, literal.value,
-               strlen(literal.value));
+        result->value.string = strdup(literal.value);
         break;
     case ExprLiteralType_NUMBER:
         result->type = ResultType_NUMBER;
@@ -107,19 +138,31 @@ static Result const *interpret_literal(Expr const *const expr) {
     return result;
 }
 
-static Result const *interpret_var(Expr const *const expr) { return NULL; }
-
-static Result const *interpret_grouping(Expr const *const expr) {
-    return evaluate(expr->value.grouping.expression);
+static Result const *interpret_var(Interpreter const interpreter,
+                                   Expr const *const expr) {
+    return environment_read(*interpreter.state, expr->value.var.name);
 }
 
-static Result const *interpret_unary(Expr const *const expr) {
+static Result const *interpret_grouping(Interpreter const interpreter,
+                                        Expr const *const expr) {
+    return evaluate(interpreter, expr->value.grouping.expression);
+}
+
+static Result const *interpret_unary(Interpreter const interpreter,
+                                     Expr const *const expr) {
     ExprUnary const unary = expr->value.unary;
-    Result const *right_result = evaluate(unary.right);
+    Result const *right_result = evaluate(interpreter, unary.right);
+    if (had_error) {
+        return NULL;
+    }
+    if (right_result->type == ResultType_IDENTIFIER) {
+        right_result = read_defined_variable(interpreter, right_result);
+    }
     if (had_error) {
         return NULL;
     }
     Result *result = calloc(1, sizeof(Result));
+    result->line = expr->line;
 
     switch (unary.type) {
     case ExprUnaryType_MINUS:
@@ -140,17 +183,34 @@ static Result const *interpret_unary(Expr const *const expr) {
     return result;
 }
 
-static void free_result(Result *result) {
-    if (result != NULL && result->type == ResultType_STRING) {
-        free((void *)result->value.string);
+static Result const *interpret_binary(Interpreter const interpreter,
+                                      Expr const *const expr) {
+    Result const *l = evaluate(interpreter, expr->value.binary.left);
+    if (had_error) {
+        return NULL;
     }
-    free(result);
-}
+    if (l->type == ResultType_IDENTIFIER) {
+        Result const *result = read_defined_variable(interpreter, l);
+        free((void *)l);
+        l = result;
+    }
 
-static Result const *interpret_binary(Expr const *const expr) {
-    Result const *l = evaluate(expr->value.binary.left);
-    Result const *r = evaluate(expr->value.binary.right);
+    Result const *r = evaluate(interpreter, expr->value.binary.right);
+    if (had_error) {
+        return NULL;
+    }
+    if (r->type == ResultType_IDENTIFIER) {
+        Result const *result = read_defined_variable(interpreter, r);
+        free((void *)r);
+        r = result;
+    }
+
+    if (had_error) {
+        return NULL;
+    }
+
     Result *result = calloc(1, sizeof(Result));
+    result->line = expr->line;
 
     Result const *ret = NULL;
 
@@ -236,82 +296,126 @@ static Result const *interpret_binary(Expr const *const expr) {
         ret = result;
         break;
     case ExprBinaryType_BANG_EQUAL:
-        free_result(result);
+        free(result);
         result = equals(l, r);
         result->value.boolean = !result->value.boolean;
         ret = result;
         break;
     case ExprBinaryType_EQUAL_EQUAL:
-        free_result(result);
+        free(result);
         result = equals(l, r);
         ret = result;
         break;
     }
 
-    if (l != ret)
-        free_result((void *)l);
-    if (r != ret)
-        free_result((void *)r);
-    if (result != ret)
-        free_result(result);
     return ret;
 }
 
-static Result const *interpret_ternary(Expr const *const expr) {
-    Result const *l = evaluate(expr->value.ternary.left);
+static Result const *interpret_ternary(Interpreter const interpreter,
+                                       Expr const *const expr) {
+    Result const *l = evaluate(interpreter, expr->value.ternary.left);
+    if (had_error) {
+        return NULL;
+    }
+    if (l->type == ResultType_IDENTIFIER) {
+        Result const *value = read_defined_variable(interpreter, l);
+        free((void *)l);
+        l = value;
+    }
+    if (had_error) {
+        return NULL;
+    }
+    Result const *ret = NULL;
     switch (expr->value.ternary.type) {
     case ExprTernaryType_CONDITIONAL:
         if (is_truthy(l)) {
-            return evaluate(expr->value.ternary.middle);
+            ret = evaluate(interpreter, expr->value.ternary.middle);
+            if (had_error) {
+                return NULL;
+            }
         } else {
-            return evaluate(expr->value.ternary.right);
+            ret = evaluate(interpreter, expr->value.ternary.right);
+            if (had_error) {
+                return NULL;
+            }
         }
         break;
     }
-    return NULL;
+    if (ret->type == ResultType_IDENTIFIER) {
+        ret = read_defined_variable(interpreter, ret);
+    }
+    return ret;
 }
 
-static Result const *evaluate(Expr const *const expr) {
+static Result const *evaluate(Interpreter const interpreter,
+                              Expr const *const expr) {
     switch (expr->type) {
     case ExprType_VAR:
-        return interpret_var(expr);
+        return interpret_var(interpreter, expr);
     case ExprType_UNARY:
-        return interpret_unary(expr);
+        return interpret_unary(interpreter, expr);
     case ExprType_BINARY:
-        return interpret_binary(expr);
+        return interpret_binary(interpreter, expr);
     case ExprType_TERNARY:
-        return interpret_ternary(expr);
+        return interpret_ternary(interpreter, expr);
     case ExprType_LITERAL:
         return interpret_literal(expr);
     case ExprType_GROUPING:
-        return interpret_grouping(expr);
+        return interpret_grouping(interpreter, expr);
     }
     return NULL;
 }
 
-static void interpret_stmt_expr(Interpreter *interpreter,
+static void interpret_stmt_expr(Interpreter const interpreter,
                                 Stmt const *const stmt) {
-    Result const *const value = evaluate(stmt->value.print.expression);
-    free_result((void *)value);
-}
-
-static void interpret_stmt_print(Interpreter *interpreter,
-                                 Stmt const *const stmt) {
-    Result const *const value = evaluate(stmt->value.print.expression);
-    if (errorhandler_haderror()) {
-        free_result((Result *)value);
+    Result const *const value =
+        evaluate(interpreter, stmt->value.print.expression);
+    if (had_error) {
         return;
     }
-    print_result(value);
-    free_result((void *)value);
+    free((void *)value);
+}
+
+static void interpret_stmt_print(Interpreter const interpreter,
+                                 Stmt const *const stmt) {
+    Result const *const value =
+        evaluate(interpreter, stmt->value.print.expression);
+    if (had_error) {
+        free((Result *)value);
+        return;
+    }
+    print_result(interpreter, value);
+    free((void *)value);
+}
+
+static void interpret_stmt_var(Interpreter const interpreter, Stmt const stmt) {
+    char const *const key = stmt.value.var.name;
+    Expr const *const initializer = stmt.value.var.initializer;
+    Result const *value = NULL;
+    if (initializer != NULL) {
+        value = evaluate(interpreter, stmt.value.var.initializer);
+        if (had_error) {
+            return;
+        }
+    }
+    environment_define(interpreter.state,
+                       (EnvironmentVariable){.key = key, .value = value});
+
+    if (had_error) {
+        free((Result *)value);
+        return;
+    }
+    free((void *)value);
 }
 
 Interpreter *interpreter_init(void) {
     Interpreter *interpreter = calloc(1, sizeof(Interpreter));
+    Environment *env = environment_init(4);
+    interpreter->state = env;
     return interpreter;
 }
-void interpreter_interpret(Interpreter *interpreter, size_t const stmt_count,
-                           Stmt *stmts[stmt_count]) {
+void interpreter_interpret(Interpreter const interpreter,
+                           size_t const stmt_count, Stmt *stmts[stmt_count]) {
     for (size_t i = 0; i < stmt_count; ++i) {
         Stmt const *stmt = stmts[i];
         switch (stmt->type) {
@@ -321,8 +425,12 @@ void interpreter_interpret(Interpreter *interpreter, size_t const stmt_count,
         case StmtType_PRINT:
             interpret_stmt_print(interpreter, stmt);
             break;
+        case StmtType_VAR:
+            interpret_stmt_var(interpreter, *stmt);
+            break;
         }
         if (had_error) {
+            had_error = false;
             break;
         }
     }

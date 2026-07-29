@@ -1,5 +1,5 @@
 COMPILE_FLAGS = \
-	-std=c17 \
+	-std=c23 \
 	-Wpedantic \
 	-Wall \
 	-Wextra \
