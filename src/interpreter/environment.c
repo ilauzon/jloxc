@@ -23,31 +23,35 @@ static void place_in_map(EnvironmentMapNode *map, size_t map_size,
                          EnvironmentVariable variable) {
     uint64_t const hashed = hash(variable.key, map_size);
     EnvironmentMapNode *current_node = map + hashed;
+
+    // if the immediate map entry is empty, fill that
     if (current_node->current.key == NULL) {
         current_node->current.key = strdup(variable.key);
-        current_node->current.value =
-            malloc(sizeof(*current_node->current.value));
+        current_node->current.value = malloc(sizeof(Result));
         memcpy((void *restrict)current_node->current.value, variable.value,
-               sizeof(*current_node->current.value));
-    } else {
-        while (current_node->next != NULL) {
-            if (!strcmp(current_node->current.key, variable.key)) {
-                free((void *)current_node->current.value);
-                current_node->current.value =
-                    malloc(sizeof(*current_node->current.value));
-                memcpy((void *restrict)current_node->current.value,
-                       variable.value, sizeof(*current_node->current.value));
-                return;
-            }
-            current_node = current_node->next;
-        }
-        EnvironmentMapNode *new_node = calloc(1, sizeof(EnvironmentMapNode));
-        new_node->current.key = strdup(variable.key);
-        new_node->current.value = malloc(sizeof(*new_node->current.value));
-        memcpy((void *restrict)new_node->current.value, variable.value,
-               sizeof(*new_node->current.value));
-        current_node->next = new_node;
+               sizeof(Result));
+        return;
     }
+
+    while (current_node->next != NULL) {
+        // update the current variable if an updated value is provided
+        if (!strcmp(current_node->current.key, variable.key)) {
+            free((void *)current_node->current.value);
+            current_node->current.value = malloc(sizeof(Result));
+            memcpy((void *restrict)current_node->current.value, variable.value,
+                   sizeof(Result));
+            return;
+        }
+        current_node = current_node->next;
+    }
+
+    // Create the new node to store the value upon collisions
+    EnvironmentMapNode *new_node = calloc(1, sizeof(EnvironmentMapNode));
+    new_node->current.key = strdup(variable.key);
+    new_node->current.value = malloc(sizeof(*new_node->current.value));
+    memcpy((void *restrict)new_node->current.value, variable.value,
+           sizeof(*variable.value));
+    current_node->next = new_node;
 }
 
 static void free_node_and_children(EnvironmentMapNode *node) {
@@ -88,7 +92,7 @@ static void double_map(Environment *env) {
  * @brief Determine if the map storing variables in the environment needs
  * resizing.
  *
- * The map should be resized if it is more than half full.
+ * The map should be resized if it is more than half full of non-colliding keys.
  *
  * @param env The environment to examine.
  * @return True if the variable map should be resized, false otherwise.
@@ -108,11 +112,11 @@ Result const *environment_read(Environment const env, char const *const key) {
     EnvironmentMapNode current_node = env.map[hashed];
 
     while (current_node.next != NULL) {
-        current_node = *current_node.next;
         if (current_node.current.key != NULL &&
             !strcmp(current_node.current.key, key)) {
             break;
         }
+        current_node = *current_node.next;
     }
 
     if (current_node.current.key != NULL &&

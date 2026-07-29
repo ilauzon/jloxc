@@ -5,6 +5,7 @@
 
 typedef struct {
     Environment *state;
+    ArenaAllocator *allocator;
 } Interpreter;
 
 Interpreter *interpreter_init(void);

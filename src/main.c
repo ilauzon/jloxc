@@ -64,7 +64,6 @@ void run(Interpreter const interpreter, char const line[static 1]) {
 
         free(stmts);
         arena_destroy(parser_allocator);
-        free(parser_allocator);
     }
 
     free_tokens(tokens, token_list_size);

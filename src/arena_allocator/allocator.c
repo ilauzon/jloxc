@@ -27,7 +27,17 @@ void *arena_allocate(ArenaAllocator *allocator, size_t bytes) {
     return ptr;
 }
 
-void arena_destroy(ArenaAllocator *allocator) { free(allocator->arena); }
+/**
+ * @brief Free the arena memory and the allocator itself.
+ *
+ * Frees allocator->arena and allocator.
+ *
+ * @param allocator The allocator to free.
+ */
+void arena_destroy(ArenaAllocator *allocator) {
+    free(allocator->arena);
+    free(allocator);
+}
 
 void arena_mark(ArenaAllocator *allocator) {
     allocator->mark = allocator->head;

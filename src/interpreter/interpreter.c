@@ -82,8 +82,9 @@ static bool is_truthy(Result const *const result) {
     return true;
 }
 
-static Result *equals(Result const *const first, Result const *const second) {
-    Result *result = calloc(1, sizeof(Result));
+static Result *equals(Interpreter const interpreter, Result const *const first,
+                      Result const *const second) {
+    Result *result = arena_allocate(interpreter.allocator, sizeof(Result));
     result->line = first->line;
     result->type = ResultType_BOOLEAN;
     if (first->type == ResultType_NUMBER && second->type == ResultType_NUMBER) {
@@ -101,15 +102,15 @@ static Result *equals(Result const *const first, Result const *const second) {
     return result;
 }
 
-static Result const *interpret_literal(Expr const *const expr) {
+static Result const *interpret_literal(Interpreter const interpreter,
+                                       Expr const *const expr) {
     ExprLiteral const literal = expr->value.literal;
-    Result *result = calloc(1, sizeof(Result));
+    Result *result = arena_allocate(interpreter.allocator, sizeof(Result));
     result->line = expr->line;
 
     switch (literal.type) {
     case ExprLiteralType_MISSING:
         error(expr, "Missing value.");
-        free(result);
         return NULL;
     case ExprLiteralType_NIL:
         result->type = ResultType_NULL;
@@ -161,14 +162,13 @@ static Result const *interpret_unary(Interpreter const interpreter,
     if (had_error) {
         return NULL;
     }
-    Result *result = calloc(1, sizeof(Result));
+    Result *result = arena_allocate(interpreter.allocator, sizeof(Result));
     result->line = expr->line;
 
     switch (unary.type) {
     case ExprUnaryType_MINUS:
         if (right_result->type != ResultType_NUMBER) {
             error(expr, "Operand must be a number.");
-            free(result);
             return NULL;
         }
         result->type = ResultType_NUMBER;
@@ -191,7 +191,6 @@ static Result const *interpret_binary(Interpreter const interpreter,
     }
     if (l->type == ResultType_IDENTIFIER) {
         Result const *result = read_defined_variable(interpreter, l);
-        free((void *)l);
         l = result;
     }
 
@@ -201,7 +200,6 @@ static Result const *interpret_binary(Interpreter const interpreter,
     }
     if (r->type == ResultType_IDENTIFIER) {
         Result const *result = read_defined_variable(interpreter, r);
-        free((void *)r);
         r = result;
     }
 
@@ -209,7 +207,7 @@ static Result const *interpret_binary(Interpreter const interpreter,
         return NULL;
     }
 
-    Result *result = calloc(1, sizeof(Result));
+    Result *result = arena_allocate(interpreter.allocator, sizeof(Result));
     result->line = expr->line;
 
     Result const *ret = NULL;
@@ -236,8 +234,9 @@ static Result const *interpret_binary(Interpreter const interpreter,
                    r->type == ResultType_STRING) {
             result->type = ResultType_STRING;
             char *str =
-                calloc(strlen(l->value.string) + strlen(r->value.string) + 1,
-                       sizeof(char));
+                arena_allocate(interpreter.allocator,
+                               strlen(l->value.string) +
+                                   strlen(r->value.string) + 1 * sizeof(char));
             strcat(str, l->value.string);
             strcat(str + strlen(l->value.string), r->value.string);
             result->value.string = str;
@@ -296,14 +295,12 @@ static Result const *interpret_binary(Interpreter const interpreter,
         ret = result;
         break;
     case ExprBinaryType_BANG_EQUAL:
-        free(result);
-        result = equals(l, r);
+        result = equals(interpreter, l, r);
         result->value.boolean = !result->value.boolean;
         ret = result;
         break;
     case ExprBinaryType_EQUAL_EQUAL:
-        free(result);
-        result = equals(l, r);
+        result = equals(interpreter, l, r);
         ret = result;
         break;
     }
@@ -319,7 +316,6 @@ static Result const *interpret_ternary(Interpreter const interpreter,
     }
     if (l->type == ResultType_IDENTIFIER) {
         Result const *value = read_defined_variable(interpreter, l);
-        free((void *)l);
         l = value;
     }
     if (had_error) {
@@ -359,7 +355,7 @@ static Result const *evaluate(Interpreter const interpreter,
     case ExprType_TERNARY:
         return interpret_ternary(interpreter, expr);
     case ExprType_LITERAL:
-        return interpret_literal(expr);
+        return interpret_literal(interpreter, expr);
     case ExprType_GROUPING:
         return interpret_grouping(interpreter, expr);
     }
@@ -373,7 +369,6 @@ static void interpret_stmt_expr(Interpreter const interpreter,
     if (had_error) {
         return;
     }
-    free((void *)value);
 }
 
 static void interpret_stmt_print(Interpreter const interpreter,
@@ -381,11 +376,9 @@ static void interpret_stmt_print(Interpreter const interpreter,
     Result const *const value =
         evaluate(interpreter, stmt->value.print.expression);
     if (had_error) {
-        free((Result *)value);
         return;
     }
     print_result(interpreter, value);
-    free((void *)value);
 }
 
 static void interpret_stmt_var(Interpreter const interpreter, Stmt const stmt) {
@@ -397,26 +390,32 @@ static void interpret_stmt_var(Interpreter const interpreter, Stmt const stmt) {
         if (had_error) {
             return;
         }
+        if (value->type == ResultType_IDENTIFIER) {
+            value = read_defined_variable(interpreter, value);
+            if (had_error) {
+                return;
+            }
+        }
     }
     environment_define(interpreter.state,
                        (EnvironmentVariable){.key = key, .value = value});
-
-    if (had_error) {
-        free((Result *)value);
-        return;
-    }
-    free((void *)value);
 }
 
 Interpreter *interpreter_init(void) {
     Interpreter *interpreter = calloc(1, sizeof(Interpreter));
-    Environment *env = environment_init(4);
+    Environment *env = environment_init(100);
     interpreter->state = env;
+    ArenaAllocator *allocator = arena_init(1024);
+    interpreter->allocator = allocator;
     return interpreter;
 }
 void interpreter_interpret(Interpreter const interpreter,
                            size_t const stmt_count, Stmt *stmts[stmt_count]) {
     for (size_t i = 0; i < stmt_count; ++i) {
+
+        // clear all memory not in the environment before each statement
+        arena_destroy_until_mark(interpreter.allocator);
+
         Stmt const *stmt = stmts[i];
         switch (stmt->type) {
         case StmtType_EXPR:
@@ -429,6 +428,7 @@ void interpreter_interpret(Interpreter const interpreter,
             interpret_stmt_var(interpreter, *stmt);
             break;
         }
+
         if (had_error) {
             had_error = false;
             break;
