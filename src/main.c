@@ -37,26 +37,20 @@ static void print_tokens(size_t tokens_len, Token tokens[tokens_len]) {
     }
 }
 
-void free_tokens(Token *tokens, size_t len) {
-    for (size_t i = 0; i < len; ++i) {
-        free((void *)tokens[i].lexeme);
-        if (tokens[i].literal != NULL) {
-            free((void *)tokens[i].literal->value);
-            free((void *)tokens[i].literal);
-        }
-    }
-    free(tokens);
-}
-
 void run(Interpreter const interpreter, char const line[static 1]) {
     size_t token_list_size = 0;
-    Token *tokens = scanner_scan_tokens(line, &token_list_size);
+    ArenaAllocator *token_allocator = arena_init(1024);
+    Token const *const *const tokens =
+        scanner_scan_tokens(token_allocator, line, &token_list_size);
 
     if (!errorhandler_haderror()) {
         size_t stmts_len = 0;
         ArenaAllocator *parser_allocator = arena_init(1024);
         Stmt **stmts =
             parser_parse(parser_allocator, tokens, token_list_size, &stmts_len);
+
+        arena_destroy(token_allocator);
+        free((void *)tokens);
 
         if (!errorhandler_haderror()) {
             interpreter_interpret(interpreter, stmts_len, stmts);
@@ -65,8 +59,6 @@ void run(Interpreter const interpreter, char const line[static 1]) {
         free(stmts);
         arena_destroy(parser_allocator);
     }
-
-    free_tokens(tokens, token_list_size);
 }
 
 int run_file(char const path[static 1]) {

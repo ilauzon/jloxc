@@ -1,4 +1,5 @@
 #pragma once
+#include "../arena_allocator/allocator.h"
 #include "tokentype.h"
 #include <stddef.h>
 
@@ -28,15 +29,10 @@ typedef struct {
     enum TokenType const type;
 } Token;
 
-Literal *token_literal_init_int(int value);
-Literal *token_literal_init_double(double value);
-Literal *token_literal_init_string(char const *const value);
+Literal *token_literal_init_double(ArenaAllocator *allocator, double value);
+Literal *token_literal_init_string(ArenaAllocator *allocator,
+                                   char const *const value);
 
-#define token_literal_init(x)                                                  \
-    _Generic((x),                                                              \
-        int: token_literal_init_int,                                           \
-        double: token_literal_init_double,                                     \
-        char *: token_literal_init_string)(x)
-
-Token *token_init(enum TokenType const type, char const *const lexeme,
-                  Literal const *const literal, unsigned int const line);
+Token *token_init(ArenaAllocator *allocator, enum TokenType const type,
+                  char const *const lexeme, Literal const *const literal,
+                  unsigned int const line);

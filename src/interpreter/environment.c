@@ -54,20 +54,26 @@ static void place_in_map(EnvironmentMapNode *map, size_t map_size,
     current_node->next = new_node;
 }
 
-static void free_node_and_children(EnvironmentMapNode *node) {
+static void free_node_and_children(EnvironmentMapNode *node,
+                                   bool free_kvpairs) {
     if (node->next != NULL) {
+        if (free_kvpairs) {
+            free((void *)node->current.key);
+            free((void *)node->current.value);
+        }
         free(node);
         return;
     }
-    free_node_and_children(node->next);
+    free_node_and_children(node->next, free_kvpairs);
 }
 
-static void free_map(EnvironmentMapNode *map, size_t map_size) {
+static void free_map(EnvironmentMapNode *map, size_t map_size,
+                     bool free_kvpairs) {
     for (size_t i = 0; i < map_size; ++i) {
         if (place_in_map_is_empty(map + i)) {
             continue;
         }
-        free_node_and_children(map[i].next);
+        free_node_and_children(map[i].next, free_kvpairs);
     }
 }
 
@@ -83,7 +89,8 @@ static void double_map(Environment *env) {
         place_in_map(doubled_map, env->map_size * 2, variable);
     }
 
-    free_map(env->map, env->map_size);
+    // do not free the key/value memory since it is reused for the doubled map
+    free_map(env->map, env->map_size, false);
     env->map_size *= 2;
     env->map = doubled_map;
 }
@@ -148,4 +155,10 @@ Environment *environment_init(size_t initial_size) {
     EnvironmentMapNode *map = calloc(initial_size, sizeof(EnvironmentMapNode));
     env->map = map;
     return env;
+}
+
+void environment_destroy(Environment *env) {
+    free_map(env->map, env->map_size, true);
+    free(env->map);
+    free(env);
 }

@@ -6,7 +6,6 @@
 #include "../errors/errorhandler.h"
 #include <stdarg.h>
 #include <stdbool.h>
-#include <stdlib.h>
 #include <string.h>
 
 /* ternary expressions */
@@ -112,7 +111,7 @@ Expr *expr_init_var(ArenaAllocator *allocator, Token const *const name) {
     Expr *e = arena_allocate(allocator, sizeof(Expr));
     e->type = ExprType_VAR;
     e->line = name->line;
-    e->value.var.name = name->lexeme;
+    e->value.var.name = arena_strdup(allocator, name->lexeme);
     return e;
 }
 
@@ -138,18 +137,17 @@ Expr *expr_init_literal(ArenaAllocator *allocator, Token const *const token) {
         break;
     case TokenType_IDENTIFIER:
         e->value.literal.type = ExprLiteralType_IDENTIFIER;
-        // TODO fix this so that it works with the arena allocator, e.g. copy
-        // the value instead of its pointer or use a different allocator for
-        // strings.
-        e->value.literal.value = token->lexeme;
+        e->value.literal.value = arena_strdup(allocator, token->lexeme);
         break;
     case TokenType_STRING:
         e->value.literal.type = ExprLiteralType_STRING;
-        e->value.literal.value = token->literal->value;
+        e->value.literal.value = arena_strdup(allocator, token->lexeme);
         break;
     case TokenType_NUMBER:
         e->value.literal.type = ExprLiteralType_NUMBER;
-        e->value.literal.value = token->literal->value;
+        e->value.literal.value = arena_allocate(allocator, sizeof(double));
+        memcpy((double *)e->value.literal.value, token->literal->value,
+               sizeof(double));
         break;
     default:
         errorhandler_printerror(e->line,
@@ -162,9 +160,13 @@ Expr *expr_init_literal(ArenaAllocator *allocator, Token const *const token) {
 }
 
 Expr *expr_init_missing(ArenaAllocator *allocator) {
-    Token *token = token_init(TokenType_MISSING, NULL, NULL, 0);
-    Expr *literal = expr_init_literal(allocator, token);
-    free(token);
+    Token token = {
+        .line = 0,
+        .literal = NULL,
+        .lexeme = NULL,
+        .type = TokenType_MISSING,
+    };
+    Expr *literal = expr_init_literal(allocator, &token);
     return literal;
 }
 
@@ -213,7 +215,7 @@ Stmt *stmt_var_init(ArenaAllocator *allocator, char const *name,
                     Expr *expression) {
     Stmt *stmt = arena_allocate(allocator, sizeof(Stmt));
     stmt->type = StmtType_VAR;
-    stmt->value.var.name = name;
+    stmt->value.var.name = arena_strdup(allocator, name);
     stmt->value.var.initializer = expression;
     return stmt;
 }

@@ -27,6 +27,13 @@ void *arena_allocate(ArenaAllocator *allocator, size_t bytes) {
     return ptr;
 }
 
+char const *arena_strdup(ArenaAllocator *allocator, char const *const s) {
+    size_t len = strlen(s);
+    char *ptr = arena_allocate(allocator, len + 1);
+    memcpy(ptr, s, len);
+    return ptr;
+}
+
 /**
  * @brief Free the arena memory and the allocator itself.
  *

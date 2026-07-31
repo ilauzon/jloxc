@@ -23,3 +23,5 @@ void environment_define(Environment *env, EnvironmentVariable variable);
 Result const *environment_read(Environment const env, char const *const key);
 
 Environment *environment_init(size_t initial_size);
+
+void environment_destroy(Environment *env);

@@ -40,20 +40,11 @@
 #include "../scanner/token.h"
 #include "../scanner/tokentype.h"
 #include "expr.h"
+#include <alloca.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-static Parser *init(ArenaAllocator *allocator, Token const *const tokens,
-                    size_t const tokens_len) {
-    Parser *p = calloc(1, sizeof(Parser));
-    p->tokens = tokens;
-    p->tokens_len = tokens_len;
-    p->current = 0;
-    p->allocator = allocator;
-    return p;
-}
 
 /**
  * @brief Get the last consumed token.
@@ -61,7 +52,7 @@ static Parser *init(ArenaAllocator *allocator, Token const *const tokens,
  * @return The last token consumed by the parser.
  */
 static Token const *previous(Parser *parser) {
-    return parser->tokens + parser->current - 1;
+    return parser->tokens[parser->current - 1];
 }
 
 /**
@@ -71,7 +62,7 @@ static Token const *previous(Parser *parser) {
  * consumed.
  */
 static Token const *peek(Parser const *const parser) {
-    return parser->tokens + parser->current;
+    return parser->tokens[parser->current];
 }
 
 /**
@@ -476,29 +467,33 @@ static Stmt *declaration(Parser *parser) {
  * @param return_length_ptr the number of statements returned.
  * @return the statement list, i.e. the AST.
  */
-Stmt **parser_parse(ArenaAllocator *allocator, Token const *const tokens,
+Stmt **parser_parse(ArenaAllocator *allocator, Token const *const *const tokens,
                     size_t const tokens_len, size_t *return_length_ptr) {
-    Parser *parser = init(allocator, tokens, tokens_len);
+    Parser parser = {
+        .tokens = tokens,
+        .tokens_len = tokens_len,
+        .current = 0,
+        .allocator = allocator,
+    };
     Stmt **statements = NULL;
 
     *return_length_ptr = 0;
 
-    while (!is_at_end(parser)) {
-        arena_mark(parser->allocator);
+    while (!is_at_end(&parser)) {
+        arena_mark(parser.allocator);
         (*return_length_ptr)++;
         // TODO double this when necessary instead of a realloc on every
         // statement
         statements = realloc(statements, *return_length_ptr * sizeof(Stmt));
-        Stmt *stmt = declaration(parser);
+        Stmt *stmt = declaration(&parser);
 
-        if (!parser->panicking) {
+        if (!parser.panicking) {
             statements[*return_length_ptr - 1] = stmt;
         } else {
-            synchronize(parser);
-            parser->panicking = false;
-            arena_destroy_until_mark(parser->allocator);
+            synchronize(&parser);
+            parser.panicking = false;
+            arena_destroy_until_mark(parser.allocator);
         }
     }
-    free(parser);
     return statements;
 }

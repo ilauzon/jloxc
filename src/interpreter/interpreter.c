@@ -125,11 +125,12 @@ static Result const *interpret_literal(Interpreter const interpreter,
         break;
     case ExprLiteralType_IDENTIFIER:
         result->type = ResultType_IDENTIFIER;
-        result->value.name = strdup(literal.value);
+        result->value.name = arena_strdup(interpreter.allocator, literal.value);
         break;
     case ExprLiteralType_STRING:
         result->type = ResultType_STRING;
-        result->value.string = strdup(literal.value);
+        result->value.string =
+            arena_strdup(interpreter.allocator, literal.value);
         break;
     case ExprLiteralType_NUMBER:
         result->type = ResultType_NUMBER;
@@ -409,6 +410,13 @@ Interpreter *interpreter_init(void) {
     interpreter->allocator = allocator;
     return interpreter;
 }
+
+void interpreter_destroy(Interpreter *interpreter) {
+    arena_destroy(interpreter->allocator);
+    environment_destroy(interpreter->state);
+    free(interpreter);
+}
+
 void interpreter_interpret(Interpreter const interpreter,
                            size_t const stmt_count, Stmt *stmts[stmt_count]) {
     for (size_t i = 0; i < stmt_count; ++i) {

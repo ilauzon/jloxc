@@ -12,6 +12,8 @@
  * A token scanner.
  */
 typedef struct {
+    /** The arena allocator to use for tokens. */
+    ArenaAllocator *allocator;
     /** A null-terminated string of source code. */
     char const *const source;
     /** The first character in the lexeme being scanned. */
@@ -21,7 +23,7 @@ typedef struct {
     /** The source line that `current` is on. */
     int line;
     /** Pointer to the list of tokens that have been scanned so far. */
-    Token *tokens;
+    Token const **tokens;
     /** The current number of elements in `tokens`. */
     size_t tokens_len;
     /** The number of tokens of allocated memory in `tokens`. */
@@ -40,8 +42,7 @@ static char advance(Scanner *const scanner) {
  * @brief Add a token to the scanner's token list.
  *
  * @param scanner The scanner.
- * @param token The token to be added. This is shallow-copied into the scanner's
- * list, so the token may be freed after this call.
+ * @param token The token to be added.
  */
 static void add_token(Scanner *const scanner, Token *const token) {
     if (scanner->tokens_len == scanner->tokens_mem_size) {
@@ -49,7 +50,7 @@ static void add_token(Scanner *const scanner, Token *const token) {
         scanner->tokens =
             realloc(scanner->tokens, scanner->tokens_mem_size * sizeof(Token));
     }
-    memcpy(scanner->tokens + scanner->tokens_len++, token, sizeof(Token));
+    scanner->tokens[scanner->tokens_len++] = token;
 }
 
 static void add_token_from_literal(Scanner *const scanner,
@@ -58,13 +59,13 @@ static void add_token_from_literal(Scanner *const scanner,
     assert(scanner->start < scanner->current);
 
     size_t const lexeme_size = scanner->current - scanner->start;
-    char *const lexeme = malloc(lexeme_size + 1);
+    char *const lexeme = arena_allocate(scanner->allocator, lexeme_size + 1);
     lexeme[lexeme_size] = '\0';
 
     strncpy(lexeme, scanner->source + scanner->start, lexeme_size);
-    Token *token = token_init(type, lexeme, literal, scanner->line);
+    Token *token =
+        token_init(scanner->allocator, type, lexeme, literal, scanner->line);
     add_token(scanner, token);
-    free(token);
 }
 
 static void add_token_literal_from_type(Scanner *const scanner,
@@ -141,11 +142,12 @@ static void scan_string(Scanner *const scanner) {
     // copy the string, trimming the surrounding quotes.
     assert(scanner->current > scanner->start);
     size_t string_length = scanner->current - scanner->start - 1;
-    char *const string = malloc(string_length);
+    char *const string = arena_allocate(scanner->allocator, string_length);
     memcpy(string, scanner->source + scanner->start + 1, string_length);
     string[string_length - 1] = '\0';
 
-    Literal *const literal = token_literal_init(string);
+    Literal *const literal =
+        token_literal_init_string(scanner->allocator, string);
     add_token_from_literal(scanner, TokenType_STRING, literal);
 }
 
@@ -171,7 +173,8 @@ static void scan_number(Scanner *const scanner) {
 
     double value = atof(string);
     free(string);
-    Literal *const literal = token_literal_init(value);
+    Literal *const literal =
+        token_literal_init_double(scanner->allocator, value);
     add_token_from_literal(scanner, TokenType_NUMBER, literal);
 }
 
@@ -315,27 +318,6 @@ static void scan_token(Scanner *const scanner) {
         break;
     }
 }
-static Scanner *init(char const *const source) {
-    size_t initial_token_list_size = 10;
-    Token *token_list = calloc(initial_token_list_size, sizeof(Token));
-    Scanner scanner_init = {
-        .source = source,
-        .start = 0,
-        .current = 0,
-        .line = 1,
-        .tokens = token_list,
-        .tokens_len = 0,
-        .tokens_mem_size = initial_token_list_size,
-    };
-
-    Scanner *scanner = calloc(1, sizeof(Scanner));
-    if (!scanner) {
-        perror("Memory allocation failed");
-        return NULL;
-    }
-    memcpy(scanner, &scanner_init, sizeof(Scanner));
-    return scanner;
-}
 
 /**
  * @brief Scan the given source code string and convert it to a list of
@@ -346,30 +328,41 @@ static Scanner *init(char const *const source) {
  * @return A pointer to a list of the tokens scanned from the given source
  * code.
  */
-Token *scanner_scan_tokens(char const *const source,
-                           size_t *const token_list_size) {
-    Scanner *scanner = init(source);
-    while (!is_at_end(scanner)) {
-        scan_token(scanner);
-        scanner->start = scanner->current;
+Token const *const *scanner_scan_tokens(ArenaAllocator *allocator,
+                                        char const *const source,
+                                        size_t *const token_list_size) {
+    Scanner scanner = {
+        .allocator = allocator,
+        .source = source,
+        .start = 0,
+        .current = 0,
+        .line = 1,
+        .tokens = calloc(10, sizeof(Token)),
+        .tokens_len = 0,
+        .tokens_mem_size = 10,
+    };
+
+    while (!is_at_end(&scanner)) {
+        scan_token(&scanner);
+        scanner.start = scanner.current;
     }
 
-    scanner->tokens_len++;
-    scanner->tokens =
-        realloc(scanner->tokens, scanner->tokens_len * sizeof(Token));
-
-    char *eof_str = calloc(1, 6);
+    // append EOF to token list, always
+    scanner.tokens_len++;
+    scanner.tokens =
+        realloc(scanner.tokens, scanner.tokens_len * sizeof(Token));
+    char *eof_str = arena_allocate(allocator, 6 * sizeof(char));
     strncpy(eof_str, "<EOF>", 6);
-    Token eof = {
+    Token eof_stack = {
         .lexeme = eof_str,
-        .line = scanner->line,
+        .line = scanner.line,
         .literal = NULL,
         .type = TokenType_EOF,
     };
-    memcpy(scanner->tokens + scanner->tokens_len - 1, &eof, sizeof(Token));
-    *token_list_size = scanner->tokens_len;
-    Token *tokens = scanner->tokens;
-    free(scanner);
+    Token *eof = arena_allocate(allocator, sizeof(Token));
+    memcpy(eof, &eof_stack, sizeof(Token));
+    scanner.tokens[scanner.tokens_len - 1] = eof;
+    *token_list_size = scanner.tokens_len;
 
-    return tokens;
+    return scanner.tokens;
 }

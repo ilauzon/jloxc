@@ -13,8 +13,9 @@
  * the token is not a literal.
  * @return A pointer to the new token that must be freed.
  */
-Token *token_init(enum TokenType const type, char const *const lexeme,
-                  Literal const *const literal, unsigned int const line) {
+Token *token_init(ArenaAllocator *allocator, enum TokenType const type,
+                  char const *const lexeme, Literal const *const literal,
+                  unsigned int const line) {
     Token token_init = {
         .line = line,
         .literal = literal,
@@ -22,11 +23,7 @@ Token *token_init(enum TokenType const type, char const *const lexeme,
         .type = type,
     };
 
-    Token *token = malloc(sizeof(Token));
-    if (!token) {
-        perror("memory allocation failed");
-        return NULL;
-    }
+    Token *token = arena_allocate(allocator, sizeof(Token));
 
     memcpy(token, &token_init, sizeof(Token));
     return token;
@@ -42,8 +39,9 @@ char const *token_literal_string_to_string(Literal const *const it) {
     return str;
 }
 
-Literal *token_literal_init_string(char const *const value) {
-    Literal *literal = malloc(sizeof(Literal));
+Literal *token_literal_init_string(ArenaAllocator *allocator,
+                                   char const *const value) {
+    Literal *literal = arena_allocate(allocator, sizeof(Literal));
     literal->value = value;
     literal->to_string = token_literal_string_to_string;
     return literal;
@@ -57,15 +55,11 @@ char const *token_literal_double_to_string(Literal const *const it) {
     return string;
 }
 
-Literal *token_literal_init_double(double value) {
-    Literal *literal = malloc(sizeof(Literal));
-    double *value_ptr = malloc(sizeof(value));
+Literal *token_literal_init_double(ArenaAllocator *allocator, double value) {
+    Literal *literal = arena_allocate(allocator, sizeof(Literal));
+    double *value_ptr = arena_allocate(allocator, sizeof(value));
     memcpy(value_ptr, &value, sizeof(value));
     literal->value = value_ptr;
     literal->to_string = token_literal_double_to_string;
     return literal;
-}
-
-Literal *token_literal_init_int(int value) {
-    return token_literal_init_double(value);
 }
