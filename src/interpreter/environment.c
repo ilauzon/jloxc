@@ -2,16 +2,16 @@
 #include <stdint.h>
 #include <string.h>
 
-static uint64_t hash(char const *const key, uint64_t modulo) {
-    return 0;
-    // TODO use a better hash than this shit thing
+static uint32_t djb2_hash(char const *const key) {
+    uint32_t ret = 5381;
+    for (size_t i = 0; i < strlen(key); ++i) {
+        ret = ((ret << 5) + ret) + key[i];
+    }
+    return ret;
+}
 
-    // uint64_t sum = 0;
-    // for (size_t i = 0; i < strlen(key); ++i) {
-    //     sum += key[i];
-    //     sum <<= 7;
-    // }
-    // return sum % modulo;
+static uint64_t hash(char const *const key, uint64_t modulo) {
+    return djb2_hash(key) % modulo;
 }
 
 static bool place_in_map_is_empty(EnvironmentMapNode *place) {
