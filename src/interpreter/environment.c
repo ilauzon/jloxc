@@ -33,16 +33,18 @@ static void place_in_map(EnvironmentMapNode *map, size_t map_size,
         return;
     }
 
-    while (current_node->next != NULL) {
-        // update the current variable if an updated value is provided
-        if (!strcmp(current_node->current.key, variable.key)) {
-            free((void *)current_node->current.value);
-            current_node->current.value = malloc(sizeof(Result));
-            memcpy((void *restrict)current_node->current.value, variable.value,
-                   sizeof(Result));
-            return;
-        }
+    while (current_node->next != NULL &&
+           strcmp(current_node->current.key, variable.key)) {
         current_node = current_node->next;
+    }
+
+    // update the current variable if an updated value is provided
+    if (!strcmp(current_node->current.key, variable.key)) {
+        free((void *)current_node->current.value);
+        current_node->current.value = malloc(sizeof(Result));
+        memcpy((void *restrict)current_node->current.value, variable.value,
+               sizeof(Result));
+        return;
     }
 
     // Create the new node to store the value upon collisions
