@@ -59,15 +59,15 @@ static void place_in_map(EnvironmentMapNode *map, size_t map_size,
 
 static void free_node_and_children(EnvironmentMapNode *node,
                                    bool free_kvpairs) {
-    if (node->next != NULL) {
-        if (free_kvpairs) {
-            free((void *)node->current.key);
-            free((void *)node->current.value);
-        }
-        free(node);
+    if (node == NULL) {
         return;
     }
     free_node_and_children(node->next, free_kvpairs);
+    if (free_kvpairs) {
+        free((void *)node->current.key);
+        free((void *)node->current.value);
+    }
+    free(node);
 }
 
 static void free_map(EnvironmentMapNode *map, size_t map_size,
@@ -77,6 +77,10 @@ static void free_map(EnvironmentMapNode *map, size_t map_size,
             continue;
         }
         free_node_and_children(map[i].next, free_kvpairs);
+        if (free_kvpairs) {
+            free((void *)map[i].current.key);
+            free((void *)map[i].current.value);
+        }
     }
 }
 

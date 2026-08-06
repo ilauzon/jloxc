@@ -87,7 +87,7 @@ int run_file(char const path[static 1]) {
     }
 
     free(contents);
-    free(interpreter);
+    interpreter_destroy(interpreter);
     return EXIT_SUCCESS;
 }
 
@@ -103,7 +103,7 @@ int run_prompt(void) {
         run(*interpreter, line);
         errorhandler_reseterrors();
     }
-    free(interpreter);
+    interpreter_destroy(interpreter);
     return EXIT_SUCCESS;
 }
 
