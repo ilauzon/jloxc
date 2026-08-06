@@ -2,6 +2,8 @@ FLAGS = -std=c23 \
 	-Wpedantic \
 	-Wall \
 	-Wextra \
+	-Wno-unused-variable \
+	-Wno-unused-function \
 	-g \
 	-fsanitize=address \
 	-fsanitize=undefined

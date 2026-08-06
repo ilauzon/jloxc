@@ -35,11 +35,13 @@ typedef TestResult (*TestFunction)(void);
 TestResult test_allocator_allocate();
 TestResult test_allocator_small_blocks();
 TestResult test_allocator_large_blocks();
+TestResult test_allocator_mark();
 
 static TestFunction tests[] = {
     test_allocator_allocate,
     test_allocator_small_blocks,
     test_allocator_large_blocks,
+    test_allocator_mark,
 };
 
 #define CREATE_TESTRESULT()                                                    \

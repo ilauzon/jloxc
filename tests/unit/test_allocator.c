@@ -1,5 +1,8 @@
 #include "../../src/arena_allocator/allocator.h"
 #include "main.h"
+#include <assert.h>
+#include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,14 +25,12 @@ TestResult test_allocator_allocate() {
         char msg[100] = {0};
         snprintf(msg, 99, "reference %f does not match %f allocated by arena",
                  ref_d, *value_d);
-    }
-    if (*value_i != ref_i) {
+    } else if (*value_i != ref_i) {
         ret.code = TestResultCode_FAILED_TEST;
         char msg[100] = {0};
         snprintf(msg, 99, "reference %d does not match %d allocated by arena",
                  ref_i, *value_i);
-    }
-    if (*value_c != ref_c) {
+    } else if (*value_c != ref_c) {
         ret.code = TestResultCode_FAILED_TEST;
         char msg[100] = {0};
         snprintf(msg, 99, "reference %c does not match %c allocated by arena",
@@ -58,7 +59,7 @@ TestResult test_allocator_small_blocks() {
             ret.code = TestResultCode_FAILED_TEST;
             ret.message = calloc(1, 100);
             snprintf(ret.message, 99,
-                     "Index [%d]: %d on stack and %d from allocator (address "
+                     "index [%d]: %d on stack and %d from allocator (address "
                      "%p) expected to be equal",
                      i, vars_reference[i], *vars[i], (void *)vars[i]);
             break;
@@ -102,7 +103,7 @@ TestResult test_allocator_large_blocks() {
     if (strlen(large_string) < (size_t)AUTO_BLOCK_SIZE) {
         ret.code = TestResultCode_FAILED_PRECONDITION;
         ret.message =
-            strdup("Test string is too small to test large block allocation.");
+            strdup("test string is too small to test large block allocation");
         return ret;
     }
 
@@ -119,13 +120,57 @@ TestResult test_allocator_large_blocks() {
     if (strcmp(large_string, arena_string)) {
         ret.code = TestResultCode_FAILED_TEST;
         ret.message = strdup(
-            "large string arena allocation does not match original string.");
+            "large string arena allocation does not match original string");
+    } else if (*after != -2 || *before != -1) {
+        ret.code = TestResultCode_FAILED_TEST;
+        ret.message =
+            strdup("memory allocated before or after large block is corrupted");
     }
 
-    if (*after != -2 || *before != -1) {
+    arena_destroy(allocator);
+    return ret;
+}
+
+TestResult test_allocator_mark() {
+    CREATE_TESTRESULT();
+    int const THROWAWAY_ALLOCS = 1024;
+    if (AUTO_BLOCK_SIZE / sizeof(int64_t) >= (unsigned int)THROWAWAY_ALLOCS) {
+        ret.code = TestResultCode_FAILED_PRECONDITION;
+        ret.message = strdup("Test value size is too small to test marks "
+                             "across multiple blocks");
+    }
+
+    ArenaAllocator *allocator = arena_init();
+    int64_t *a = arena_allocate(allocator, sizeof(int));
+    *a = 42;
+    ArenaMark marks[16] = {0};
+    for (int i = 0; i < 16; ++i) {
+        arena_mark(allocator);
+        marks[i] = allocator->mark;
+        for (int j = 0; j < THROWAWAY_ALLOCS; ++j) {
+            int64_t *throwaway = arena_allocate(allocator, sizeof(int));
+            *throwaway = 67;
+        }
+        arena_destroy_until_mark(allocator);
+    }
+
+    if (*a != 42) {
         ret.code = TestResultCode_FAILED_TEST;
         ret.message = strdup(
-            "Memory allocated before or after large block is corrupted.");
+            "value allocated before mark/destroy-mark test is corrupted");
+        arena_destroy(allocator);
+        return ret;
+    }
+
+    ArenaMark ref_mark = marks[0];
+    for (int i = 1; i < 16; ++i) {
+        if (marks[i].offset != ref_mark.offset ||
+            marks[i].marked_block != ref_mark.marked_block) {
+            ret.code = TestResultCode_FAILED_TEST;
+            ret.message = strdup("arena marks do not match when "
+                                 "they should be the same");
+            break;
+        }
     }
 
     arena_destroy(allocator);

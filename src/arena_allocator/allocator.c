@@ -54,8 +54,8 @@ void *arena_allocate(ArenaAllocator *allocator, size_t bytes) {
     } else {
         // otherwise, allocate a new block of the required size and return
         // pointer to memory
-        create_new_block(allocator, bytes_with_offset < AUTO_BLOCK_SIZE
-                                        ? AUTO_BLOCK_SIZE
+        create_new_block(allocator, bytes_with_offset < (size_t)AUTO_BLOCK_SIZE
+                                        ? (size_t)AUTO_BLOCK_SIZE
                                         : bytes_with_offset);
         ptr = allocator->blocks[allocator->head.marked_block].start;
     }
@@ -86,9 +86,11 @@ void arena_destroy(ArenaAllocator *allocator) {
 }
 
 void arena_mark(ArenaAllocator *allocator) {
-    // TODO
+    allocator->mark.offset = allocator->head.offset;
+    allocator->mark.marked_block = allocator->head.marked_block;
 }
 
 void arena_destroy_until_mark(ArenaAllocator *allocator) {
-    // TODO
+    allocator->head.offset = allocator->mark.offset;
+    allocator->head.marked_block = allocator->mark.marked_block;
 }
