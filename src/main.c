@@ -39,13 +39,13 @@ static void print_tokens(size_t tokens_len, Token tokens[tokens_len]) {
 
 void run(Interpreter const interpreter, char const line[static 1]) {
     size_t token_list_size = 0;
-    ArenaAllocator *token_allocator = arena_init(1024);
+    ArenaAllocator *token_allocator = arena_init();
     Token const *const *const tokens =
         scanner_scan_tokens(token_allocator, line, &token_list_size);
 
     if (!errorhandler_haderror()) {
         size_t stmts_len = 0;
-        ArenaAllocator *parser_allocator = arena_init(1024);
+        ArenaAllocator *parser_allocator = arena_init();
         Stmt **stmts =
             parser_parse(parser_allocator, tokens, token_list_size, &stmts_len);
 

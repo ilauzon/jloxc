@@ -385,28 +385,29 @@ static void interpret_stmt_print(Interpreter const interpreter,
 static void interpret_stmt_var(Interpreter const interpreter, Stmt const stmt) {
     char const *const key = stmt.value.var.name;
     Expr const *const initializer = stmt.value.var.initializer;
-    Result const *value = NULL;
+    Result value;
     if (initializer != NULL) {
-        value = evaluate(interpreter, stmt.value.var.initializer);
+        value = *evaluate(interpreter, stmt.value.var.initializer);
         if (had_error) {
             return;
         }
-        if (value->type == ResultType_IDENTIFIER) {
-            value = read_defined_variable(interpreter, value);
+        if (value.type == ResultType_IDENTIFIER) {
+            value = *read_defined_variable(interpreter, &value);
             if (had_error) {
                 return;
             }
         }
+    } else {
     }
     environment_define(interpreter.state,
-                       (EnvironmentVariable){.key = key, .value = value});
+                       (EnvironmentVariable){.key = key, .value = &value});
 }
 
 Interpreter *interpreter_init(void) {
     Interpreter *interpreter = calloc(1, sizeof(Interpreter));
     Environment *env = environment_init(100);
     interpreter->state = env;
-    ArenaAllocator *allocator = arena_init(1024);
+    ArenaAllocator *allocator = arena_init();
     interpreter->allocator = allocator;
     return interpreter;
 }

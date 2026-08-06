@@ -1,14 +1,26 @@
 #pragma once
 #include <stddef.h>
 
+static int const AUTO_BLOCK_SIZE = 1024;
+
+typedef struct {
+    void *start;
+    size_t size;
+} ArenaBlock;
+
+typedef struct {
+    int offset;
+    int marked_block;
+} ArenaMark;
+
 typedef struct ArenaAllocator {
-    void *arena;
-    size_t arena_size;
-    size_t head;
-    size_t mark;
+    ArenaBlock *blocks;
+    int block_count;
+    ArenaMark mark;
+    ArenaMark head;
 } ArenaAllocator;
 
-ArenaAllocator *arena_init(size_t initial_size);
+ArenaAllocator *arena_init();
 
 void *arena_allocate(ArenaAllocator *allocator, size_t bytes);
 

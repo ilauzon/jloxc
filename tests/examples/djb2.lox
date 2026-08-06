@@ -1,0 +1,9 @@
+var hash = 5381;
+var hash = hash * 33 + 83; // S
+var hash = hash * 33 + 84; // T
+var hash = hash * 33 + 82; // R
+var hash = hash * 33 + 73; // I
+var hash = hash * 33 + 78; // N
+var hash = hash * 33 + 71; // G
+print hash;
+

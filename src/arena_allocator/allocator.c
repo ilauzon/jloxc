@@ -1,29 +1,65 @@
 #include "allocator.h"
+#include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-ArenaAllocator *arena_init(size_t initial_size) {
-    // TODO add check for initial_size being greater than 0
-    if (initial_size == 0) {
-        initial_size = 1;
+static void create_new_block(ArenaAllocator *allocator, size_t bytes) {
+    assert(allocator->head.marked_block < allocator->block_count);
+    ArenaBlock block = {
+        .start = calloc(1, bytes),
+        .size = bytes,
+    };
+    if (allocator->head.marked_block == allocator->block_count - 1) {
+        allocator->block_count++;
+        allocator->blocks = realloc(
+            allocator->blocks, sizeof(ArenaBlock) * allocator->block_count);
+
+        memcpy(allocator->blocks + allocator->block_count - 1, &block,
+               sizeof(ArenaBlock));
+        allocator->head.marked_block = allocator->block_count - 1;
+    } else {
+        allocator->head.marked_block++;
+        free(allocator->blocks[allocator->head.marked_block].start);
+        memcpy(allocator->blocks + allocator->head.marked_block, &block,
+               sizeof(ArenaBlock));
     }
+    allocator->head.offset = 0;
+}
+
+ArenaAllocator *arena_init() {
     ArenaAllocator *allocator = calloc(1, sizeof(ArenaAllocator));
-    allocator->arena = calloc(1, initial_size);
-    allocator->arena_size = initial_size;
+    ArenaBlock *arena_blocks = calloc(1, sizeof(ArenaBlock));
+    arena_blocks[0].start = calloc(1, AUTO_BLOCK_SIZE);
+    arena_blocks[0].size = AUTO_BLOCK_SIZE;
+    allocator->blocks = arena_blocks;
+    allocator->block_count = 1;
     return allocator;
 }
 
-static void expand_if_needed(ArenaAllocator *allocator, size_t bytes_to_add) {
-    while (allocator->head + bytes_to_add >= allocator->arena_size) {
-        allocator->arena_size *= 2;
-        allocator->arena = realloc(allocator->arena, allocator->arena_size);
-    }
-}
-
 void *arena_allocate(ArenaAllocator *allocator, size_t bytes) {
-    expand_if_needed(allocator, bytes);
-    void *ptr = (char *)(allocator->arena) + allocator->head;
-    allocator->head += bytes;
+    size_t offset = alignof(max_align_t) - bytes % alignof(max_align_t);
+    size_t bytes_with_offset = bytes + offset;
+    if (bytes == 0)
+        return NULL;
+    void *ptr = NULL;
+
+    ArenaBlock current_block = allocator->blocks[allocator->head.marked_block];
+    int current_block_head = allocator->head.offset;
+
+    // check if the current block has enough space for this allocation
+    if (current_block_head + bytes_with_offset <= current_block.size) {
+        // if so, then allocate and return pointer to memory
+        ptr = (char *)current_block.start + current_block_head;
+    } else {
+        // otherwise, allocate a new block of the required size and return
+        // pointer to memory
+        create_new_block(allocator, bytes_with_offset < AUTO_BLOCK_SIZE
+                                        ? AUTO_BLOCK_SIZE
+                                        : bytes_with_offset);
+        ptr = allocator->blocks[allocator->head.marked_block].start;
+    }
+    allocator->head.offset += bytes_with_offset;
     return ptr;
 }
 
@@ -42,19 +78,17 @@ char const *arena_strdup(ArenaAllocator *allocator, char const *const s) {
  * @param allocator The allocator to free.
  */
 void arena_destroy(ArenaAllocator *allocator) {
-    free(allocator->arena);
+    for (int i = 0; i < allocator->block_count; ++i) {
+        free(allocator->blocks[i].start);
+    }
+    free(allocator->blocks);
     free(allocator);
 }
 
 void arena_mark(ArenaAllocator *allocator) {
-    allocator->mark = allocator->head;
+    // TODO
 }
 
 void arena_destroy_until_mark(ArenaAllocator *allocator) {
-    // zero out memory as a precaution for future allocations expecting zeroed
-    // memory
-    void *ptr = (char *)(allocator->arena) + allocator->mark;
-    memset(ptr, 0, allocator->head - allocator->mark);
-
-    allocator->head = allocator->mark;
+    // TODO
 }
