@@ -37,7 +37,7 @@ static void print_tokens(size_t tokens_len, Token tokens[tokens_len]) {
     }
 }
 
-void run(Interpreter const interpreter, char const line[static 1]) {
+void run(Interpreter *interpreter, char const line[static 1]) {
     size_t token_list_size = 0;
     ArenaAllocator *token_allocator = arena_init();
     Token const *const *const tokens =
@@ -79,7 +79,7 @@ int run_file(char const path[static 1]) {
     fclose(file);
 
     Interpreter *interpreter = interpreter_init();
-    run(*interpreter, contents);
+    run(interpreter, contents);
     if (errorhandler_haderror()) {
         free(contents);
         free(interpreter);
@@ -100,7 +100,7 @@ int run_prompt(void) {
         if (ret == NULL || !strlen(line)) {
             break;
         }
-        run(*interpreter, line);
+        run(interpreter, line);
         errorhandler_reseterrors();
     }
     interpreter_destroy(interpreter);

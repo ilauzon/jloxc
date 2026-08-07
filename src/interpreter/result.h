@@ -6,7 +6,6 @@ enum ResultType {
     ResultType_STRING,
     ResultType_NUMBER,
     ResultType_BOOLEAN,
-    ResultType_IDENTIFIER,
 };
 
 /** The result of interpreting an `Expr`. */

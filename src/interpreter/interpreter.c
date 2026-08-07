@@ -7,33 +7,21 @@
 #include <stdlib.h>
 #include <string.h>
 
-static bool had_error = false;
+static Result const *evaluate(Interpreter *interpreter, Expr const *const expr);
 
-static Result const *evaluate(Interpreter const interpreter,
-                              Expr const *const expr);
-
-static Result const *read_defined_variable(Interpreter const interpreter,
-                                           Result const *const variable) {
-    if (variable->type != ResultType_IDENTIFIER) {
-        errorhandler_printerror(variable->line,
-                                "Internal error, non-identifier Result passed "
-                                "into read_defined_variable.");
-        return NULL;
-    }
-    Result const *value =
-        environment_read(*interpreter.state, variable->value.name);
+static Result const *read_defined_variable(Interpreter *interpreter,
+                                           char const *const name, int line) {
+    Result const *value = environment_read(*interpreter->state, name);
     if (value == NULL) {
         char message[100] = {0};
-        snprintf(message, 99, "Variable '%s' is not defined.",
-                 variable->value.name);
-        errorhandler_printerror(variable->line, message);
-        had_error = true;
+        snprintf(message, 99, "Variable '%s' is not defined.", name);
+        errorhandler_printerror(line, message);
+        interpreter->had_error = true;
     }
     return value;
 }
 
-static void print_result(Interpreter const interpreter,
-                         Result const *const result) {
+static void print_result(Interpreter *interpreter, Result const *const result) {
     switch (result->type) {
     case ResultType_NULL:
         printf("<nil>\n");
@@ -51,23 +39,13 @@ static void print_result(Interpreter const interpreter,
             printf("<false>\n");
         }
         break;
-    case ResultType_IDENTIFIER:
-        Result const *value = read_defined_variable(interpreter, result);
-        if (had_error) {
-            return;
-        }
-        if (value == NULL) {
-            printf("<uninitialized>\n");
-        } else {
-            print_result(interpreter, value);
-        }
-        break;
     }
 }
 
-static void error(Expr const *const e, char const *const message) {
+static void error(Interpreter *interpreter, Expr const *const e,
+                  char const *const message) {
     errorhandler_printerror(e->line, message);
-    had_error = true;
+    interpreter->had_error = true;
 }
 
 static bool is_truthy(Result const *const result) {
@@ -102,15 +80,15 @@ static Result *equals(Interpreter const interpreter, Result const *const first,
     return result;
 }
 
-static Result const *interpret_literal(Interpreter const interpreter,
+static Result const *interpret_literal(Interpreter *interpreter,
                                        Expr const *const expr) {
     ExprLiteral const literal = expr->value.literal;
-    Result *result = arena_allocate(interpreter.allocator, sizeof(Result));
+    Result *result = arena_allocate(interpreter->allocator, sizeof(Result));
     result->line = expr->line;
 
     switch (literal.type) {
     case ExprLiteralType_MISSING:
-        error(expr, "Missing value.");
+        error(interpreter, expr, "Missing value.");
         return NULL;
     case ExprLiteralType_NIL:
         result->type = ResultType_NULL;
@@ -124,13 +102,13 @@ static Result const *interpret_literal(Interpreter const interpreter,
         result->value.boolean = false;
         break;
     case ExprLiteralType_IDENTIFIER:
-        result->type = ResultType_IDENTIFIER;
-        result->value.name = arena_strdup(interpreter.allocator, literal.value);
+        result = (Result *)read_defined_variable(
+            interpreter, expr->value.literal.value, expr->line);
         break;
     case ExprLiteralType_STRING:
         result->type = ResultType_STRING;
         result->value.string =
-            arena_strdup(interpreter.allocator, literal.value);
+            arena_strdup(interpreter->allocator, literal.value);
         break;
     case ExprLiteralType_NUMBER:
         result->type = ResultType_NUMBER;
@@ -140,36 +118,30 @@ static Result const *interpret_literal(Interpreter const interpreter,
     return result;
 }
 
-static Result const *interpret_var(Interpreter const interpreter,
+static Result const *interpret_var(Interpreter *interpreter,
                                    Expr const *const expr) {
-    return environment_read(*interpreter.state, expr->value.var.name);
+    return environment_read(*interpreter->state, expr->value.var.name);
 }
 
-static Result const *interpret_grouping(Interpreter const interpreter,
+static Result const *interpret_grouping(Interpreter *interpreter,
                                         Expr const *const expr) {
     return evaluate(interpreter, expr->value.grouping.expression);
 }
 
-static Result const *interpret_unary(Interpreter const interpreter,
+static Result const *interpret_unary(Interpreter *interpreter,
                                      Expr const *const expr) {
     ExprUnary const unary = expr->value.unary;
     Result const *right_result = evaluate(interpreter, unary.right);
-    if (had_error) {
+    if (interpreter->had_error) {
         return NULL;
     }
-    if (right_result->type == ResultType_IDENTIFIER) {
-        right_result = read_defined_variable(interpreter, right_result);
-    }
-    if (had_error) {
-        return NULL;
-    }
-    Result *result = arena_allocate(interpreter.allocator, sizeof(Result));
+    Result *result = arena_allocate(interpreter->allocator, sizeof(Result));
     result->line = expr->line;
 
     switch (unary.type) {
     case ExprUnaryType_MINUS:
         if (right_result->type != ResultType_NUMBER) {
-            error(expr, "Operand must be a number.");
+            error(interpreter, expr, "Operand must be a number.");
             return NULL;
         }
         result->type = ResultType_NUMBER;
@@ -184,31 +156,15 @@ static Result const *interpret_unary(Interpreter const interpreter,
     return result;
 }
 
-static Result const *interpret_binary(Interpreter const interpreter,
+static Result const *interpret_binary(Interpreter *interpreter,
                                       Expr const *const expr) {
     Result const *l = evaluate(interpreter, expr->value.binary.left);
-    if (had_error) {
-        return NULL;
-    }
-    if (l->type == ResultType_IDENTIFIER) {
-        Result const *result = read_defined_variable(interpreter, l);
-        l = result;
-    }
-
     Result const *r = evaluate(interpreter, expr->value.binary.right);
-    if (had_error) {
-        return NULL;
-    }
-    if (r->type == ResultType_IDENTIFIER) {
-        Result const *result = read_defined_variable(interpreter, r);
-        r = result;
-    }
-
-    if (had_error) {
+    if (interpreter->had_error) {
         return NULL;
     }
 
-    Result *result = arena_allocate(interpreter.allocator, sizeof(Result));
+    Result *result = arena_allocate(interpreter->allocator, sizeof(Result));
     result->line = expr->line;
 
     Result const *ret = NULL;
@@ -219,7 +175,7 @@ static Result const *interpret_binary(Interpreter const interpreter,
         break;
     case ExprBinaryType_MINUS:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
-            error(expr, "Both operands must be numbers.");
+            error(interpreter, expr, "Both operands must be numbers.");
             break;
         }
         result->type = ResultType_NUMBER;
@@ -235,7 +191,7 @@ static Result const *interpret_binary(Interpreter const interpreter,
                    r->type == ResultType_STRING) {
             result->type = ResultType_STRING;
             char *str =
-                arena_allocate(interpreter.allocator,
+                arena_allocate(interpreter->allocator,
                                strlen(l->value.string) +
                                    strlen(r->value.string) + 1 * sizeof(char));
             strcat(str, l->value.string);
@@ -243,13 +199,14 @@ static Result const *interpret_binary(Interpreter const interpreter,
             result->value.string = str;
             ret = result;
         } else {
-            error(expr, "Both operands must be numbers or both operands must "
-                        "be strings.");
+            error(interpreter, expr,
+                  "Both operands must be numbers or both operands must "
+                  "be strings.");
         }
         break;
     case ExprBinaryType_SLASH:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
-            error(expr, "Both operands must be numbers.");
+            error(interpreter, expr, "Both operands must be numbers.");
         }
         result->type = ResultType_NUMBER;
         result->value.number = l->value.number / r->value.number;
@@ -257,7 +214,7 @@ static Result const *interpret_binary(Interpreter const interpreter,
         break;
     case ExprBinaryType_STAR:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
-            error(expr, "Both operands must be numbers.");
+            error(interpreter, expr, "Both operands must be numbers.");
         }
         result->type = ResultType_NUMBER;
         result->value.number = l->value.number * r->value.number;
@@ -265,7 +222,7 @@ static Result const *interpret_binary(Interpreter const interpreter,
         break;
     case ExprBinaryType_GREATER:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
-            error(expr, "Both operands must be numbers.");
+            error(interpreter, expr, "Both operands must be numbers.");
         }
         result->type = ResultType_BOOLEAN;
         result->value.boolean = l->value.number > r->value.number;
@@ -273,7 +230,7 @@ static Result const *interpret_binary(Interpreter const interpreter,
         break;
     case ExprBinaryType_GREATER_EQUAL:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
-            error(expr, "Both operands must be numbers.");
+            error(interpreter, expr, "Both operands must be numbers.");
         }
         result->type = ResultType_BOOLEAN;
         result->value.boolean = l->value.number >= r->value.number;
@@ -281,7 +238,7 @@ static Result const *interpret_binary(Interpreter const interpreter,
         break;
     case ExprBinaryType_LESS_EQUAL:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
-            error(expr, "Both operands must be numbers.");
+            error(interpreter, expr, "Both operands must be numbers.");
         }
         result->type = ResultType_BOOLEAN;
         result->value.boolean = l->value.number <= r->value.number;
@@ -289,19 +246,19 @@ static Result const *interpret_binary(Interpreter const interpreter,
         break;
     case ExprBinaryType_LESS:
         if (l->type != ResultType_NUMBER || r->type != ResultType_NUMBER) {
-            error(expr, "Both operands must be numbers.");
+            error(interpreter, expr, "Both operands must be numbers.");
         }
         result->type = ResultType_BOOLEAN;
         result->value.boolean = l->value.number < r->value.number;
         ret = result;
         break;
     case ExprBinaryType_BANG_EQUAL:
-        result = equals(interpreter, l, r);
+        result = equals(*interpreter, l, r);
         result->value.boolean = !result->value.boolean;
         ret = result;
         break;
     case ExprBinaryType_EQUAL_EQUAL:
-        result = equals(interpreter, l, r);
+        result = equals(*interpreter, l, r);
         ret = result;
         break;
     }
@@ -309,17 +266,10 @@ static Result const *interpret_binary(Interpreter const interpreter,
     return ret;
 }
 
-static Result const *interpret_ternary(Interpreter const interpreter,
+static Result const *interpret_ternary(Interpreter *interpreter,
                                        Expr const *const expr) {
     Result const *l = evaluate(interpreter, expr->value.ternary.left);
-    if (had_error) {
-        return NULL;
-    }
-    if (l->type == ResultType_IDENTIFIER) {
-        Result const *value = read_defined_variable(interpreter, l);
-        l = value;
-    }
-    if (had_error) {
+    if (interpreter->had_error) {
         return NULL;
     }
     Result const *ret = NULL;
@@ -327,24 +277,21 @@ static Result const *interpret_ternary(Interpreter const interpreter,
     case ExprTernaryType_CONDITIONAL:
         if (is_truthy(l)) {
             ret = evaluate(interpreter, expr->value.ternary.middle);
-            if (had_error) {
+            if (interpreter->had_error) {
                 return NULL;
             }
         } else {
             ret = evaluate(interpreter, expr->value.ternary.right);
-            if (had_error) {
+            if (interpreter->had_error) {
                 return NULL;
             }
         }
         break;
     }
-    if (ret->type == ResultType_IDENTIFIER) {
-        ret = read_defined_variable(interpreter, ret);
-    }
     return ret;
 }
 
-static Result const *evaluate(Interpreter const interpreter,
+static Result const *evaluate(Interpreter *interpreter,
                               Expr const *const expr) {
     switch (expr->type) {
     case ExprType_VAR:
@@ -363,43 +310,32 @@ static Result const *evaluate(Interpreter const interpreter,
     return NULL;
 }
 
-static void interpret_stmt_expr(Interpreter const interpreter,
+static void interpret_stmt_expr(Interpreter *interpreter,
                                 Stmt const *const stmt) {
-    Result const *const value =
-        evaluate(interpreter, stmt->value.print.expression);
-    if (had_error) {
-        return;
-    }
+    evaluate(interpreter, stmt->value.print.expression);
 }
 
-static void interpret_stmt_print(Interpreter const interpreter,
+static void interpret_stmt_print(Interpreter *interpreter,
                                  Stmt const *const stmt) {
     Result const *const value =
         evaluate(interpreter, stmt->value.print.expression);
-    if (had_error) {
+    if (interpreter->had_error) {
         return;
     }
     print_result(interpreter, value);
 }
 
-static void interpret_stmt_var(Interpreter const interpreter, Stmt const stmt) {
+static void interpret_stmt_var(Interpreter *interpreter, Stmt const stmt) {
     char const *const key = stmt.value.var.name;
     Expr const *const initializer = stmt.value.var.initializer;
     Result value;
     if (initializer != NULL) {
         value = *evaluate(interpreter, stmt.value.var.initializer);
-        if (had_error) {
+        if (interpreter->had_error) {
             return;
         }
-        if (value.type == ResultType_IDENTIFIER) {
-            value = *read_defined_variable(interpreter, &value);
-            if (had_error) {
-                return;
-            }
-        }
-    } else {
     }
-    environment_define(interpreter.state,
+    environment_define(interpreter->state,
                        (EnvironmentVariable){.key = key, .value = &value});
 }
 
@@ -418,12 +354,12 @@ void interpreter_destroy(Interpreter *interpreter) {
     free(interpreter);
 }
 
-void interpreter_interpret(Interpreter const interpreter,
-                           size_t const stmt_count, Stmt *stmts[stmt_count]) {
+void interpreter_interpret(Interpreter *interpreter, size_t const stmt_count,
+                           Stmt *stmts[stmt_count]) {
     for (size_t i = 0; i < stmt_count; ++i) {
 
         // clear all memory not in the environment before each statement
-        arena_destroy_until_mark(interpreter.allocator);
+        arena_destroy_until_mark(interpreter->allocator);
 
         Stmt const *stmt = stmts[i];
         switch (stmt->type) {
@@ -438,8 +374,8 @@ void interpreter_interpret(Interpreter const interpreter,
             break;
         }
 
-        if (had_error) {
-            had_error = false;
+        if (interpreter->had_error) {
+            interpreter->had_error = false;
             break;
         }
     }

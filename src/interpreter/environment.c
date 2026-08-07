@@ -150,12 +150,6 @@ Result const *environment_read(Environment const env, char const *const key) {
  * @param variable The variable to add.
  */
 void environment_define(Environment *env, EnvironmentVariable variable) {
-    if (variable.value->type == ResultType_IDENTIFIER) {
-        errorhandler_printerror(
-            variable.value->line,
-            "Internal error, attempt detected to initialize an "
-            "identifier as another identifier. This is not Haskell.");
-    }
     if (needs_resizing(*env)) {
         double_map(env);
     }
